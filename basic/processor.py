@@ -139,10 +139,11 @@ def flood_fill(img,
                mode=4):
     """
     flood_fill : bfs version
-    0 : no target / -1 : target (not clustered)
+    img : binary map (0 or -1) -> 0 : no target / -1 : target (not clustered)
     mode : 4 - 4 connection / 8 - 8 connection
-    :return:
+    :return: clustered image
     """
+    # Test image
     # img = np.array([[0, 0, 0,  0,  0, -1],
     #                 [0, 0, 0, -1, -1, -1],
     #                 [0, 0, -1, 0,  0,  0],
@@ -156,6 +157,8 @@ def flood_fill(img,
     elif mode==8:
         i_step = [1, -1, 0, 0, 1, 1, -1, -1]
         j_step = [0, 0, -1, 1, -1, 1, -1, 1]
+    else :
+        raise Exception("Only 2 modes : 4 or 8")
 
     def bfs(i, j):
         q = queue()
