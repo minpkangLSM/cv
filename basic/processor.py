@@ -4,11 +4,16 @@ import PIL
 import numpy as np
 from matplotlib import pyplot as plt
 from utils.utils import *
-
 os.path.join("..data\prac")
 
 def binary_image(file_dir,
                  thr):
+    """
+    convert the input into binary (0 or 1) image format using thr(threshold).
+    :param file_dir:
+    :param thr:
+    :return:
+    """
     img = cv2.imread(file_dir, flags=cv2.IMREAD_GRAYSCALE)
     mask_0 = img>=thr
     mask_1 = img<thr
@@ -24,9 +29,8 @@ def histogram(file_dir,
               mode=1,
               norm=True):
     """
-
     :param file_dir: image directory
-    :param read_mode: bgr(1), binary(0), bgr-alpha(-1)
+    :param read_mode: bgr(1), binary(0), bgr-alpha(-1) :: cv2 flags
     :param resize_scale: 0~1
     :param bins: histogram intervals
     :param mode: 0 - imshow image, 1 - return histogram dictionary data
@@ -104,7 +108,13 @@ def hist_equalization(file_dir,
 
 def otsu_binary(file_dir,
                 resize_scale=0.8):
-
+    """
+    Otsu binary
+    calculate the threshold making the sum of the both of variations minimum.
+    :param file_dir:
+    :param resize_scale:
+    :return: threshold making the variation minimum
+    """
     hist_dict = histogram(file_dir=file_dir,
                           read_mode=0,
                           resize_scale=resize_scale,
@@ -141,6 +151,12 @@ def flood_fill(img,
     flood_fill : bfs version
     img : binary map (0 or -1) -> 0 : no target / -1 : target (not clustered)
     mode : 4 - 4 connection / 8 - 8 connection
+    ==========================================
+    [4 connection]          [8 connection]
+        |                      \ | /
+      - 4 -                    - 8 -
+        |                      / | \
+    ==========================================
     :return: clustered image
     """
     # Test image
@@ -183,6 +199,66 @@ def flood_fill(img,
                 bfs(i,j)
                 grouping+=1
     return img
+
+def
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__" :
