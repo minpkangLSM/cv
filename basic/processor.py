@@ -200,67 +200,6 @@ def flood_fill(img,
                 grouping+=1
     return img
 
-def
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__" :
 
     file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_01.jpg"
