@@ -8,6 +8,19 @@ from matplotlib import pyplot as plt
 input data format : [x, y, i]^T, homogeneous coordinate
                     (i = 1 or h, dummy)
 """
+def arctan2(y, x) :
+    if x == 0:
+        if y > 0 : theta = 90
+        elif y < 0 : theta = -90
+    elif x > 0:
+        if y==0 : theta = 0
+        elif y > 0 : theta = math.degrees(math.atan(y/x))
+        else : theta = math.degrees(math.atan(y/x))
+    else:
+        if y==0 : theta = 180
+        elif y > 0 : theta = 180 + math.degrees(math.atan(y/x))
+        else : theta = -180 + math.degrees(math.atan(y/x))
+    return theta
 
 def tran(tx, ty):
     return np.array([[1, 0, tx], [0, 1, ty], [0, 0, 1]])
@@ -102,7 +115,8 @@ def rotation(file_dir,
     plt.imshow(frame)
     plt.show()
 
-file_dir = "D:/cv/data/prac/KakaoTalk_20220518_215457616_01.jpg"
-rotation(file_dir=file_dir,
-         theta=10,
-         interp=False)
+if __name__ == "__main__" :
+    # file_dir = "D:/cv/data/prac/KakaoTalk_20220518_215457616_01.jpg"
+    # rotation(file_dir=file_dir,
+    #          theta=10,
+    #          interp=False)
