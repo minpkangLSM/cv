@@ -1,6 +1,6 @@
 import os
 import cv2
-import PIL
+from PIL import Image
 import numpy as np
 from matplotlib import pyplot as plt
 from utils.utils import *
@@ -200,14 +200,105 @@ def flood_fill(img,
                 grouping+=1
     return img
 
+def sobel(img):
+    f_x = np.array([[-1, 0, 1],
+                    [-2, 0, 2],
+                    [-1, 0, 1]])
+    f_y = np.array([[-1, -2, -1],
+                    [ 0,  0,  0],
+                    [ 1,  2,  1]])
+    imgDx = cv2.filter2D(img, ddepth=cv2.CV_16S, kernel=f_x)
+    imgDy = cv2.filter2D(img, ddepth=cv2.CV_16S, kernel=f_y)
+
+    return imgDy, imgDx
+
+def edgeDirection(Dx, Dy):
+    """
+    -27.5 <= deg < 27.5 : 0
+    27.5 <= deg < 72.5 : 1
+    72.5 <= deg < 117.5 : 2
+    117.5 <= deg < 162.5 : 3
+    162.5 <= deg < 180 : 4
+    -180 <= deg < -162.5 : 4
+    -162.5 <= deg < -117.5 : 5
+    -117.5 <= deg < -72.5 : 6
+    -72.5 <= deg < -27.5 : 7
+    90 <= deg < 135
+    :param Dx:
+    :param Dy:
+    :return:
+    """
+    edgeDirMapRaw = np.rad2deg(np.arctan2(Dy, Dx))
+    edgeDirMapQuant = np.zeros_like(edgeDirMapRaw)
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= -27.5) & (edgeDirMapRaw < 27.5))] = 0
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= 27.5) & (edgeDirMapRaw < 72.5))] = 1
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= 72.5) & (edgeDirMapRaw < 117.5))] = 2
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= 117.5) & (edgeDirMapRaw < 162.5))] = 3
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= 162.5) & (edgeDirMapRaw <= 180))] = 4
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= -180) & (edgeDirMapRaw < -162.5 ))] = 4
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= -162.5) & (edgeDirMapRaw < -117.5))] = 5
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= -117.5) & (edgeDirMapRaw < -72.5))] = 6
+    edgeDirMapQuant[np.where((edgeDirMapRaw >= -72.5) & (edgeDirMapRaw < -27.5))] = 7
+
+    return edgeDirMapRaw, edgeDirMapQuant
+
+def edgedict(dir):
+    return None
+
+def NMS(edgeMap, edgeDirMapQuant):
+    """
+    NMS : None Maximum Suppression
+    :return:
+    """
+    edgeMap = np.pad(edgeMap, (1,1))
+    NMSMap = np.zeros_like(edgeMap)
+
+    y = [-1, +1]
+    x = [+1, -1]
+
+    coord = np.where(edgeDirMapQuant==1)
+    coord1 = np.copy(coord)
+    coord2 = np.copy(coord)
+    coord1 = (coord1[0]+y[0], coord1[1]+x[0])
+    coord2 = (coord2[0]+y[1], coord2[1]+x[1])
+    print(coord)
+    print((edgeMap[coord] > edgeMap[coord1]) & (edgeMap[coord] > edgeMap[coord2]))
+    s = np.where((edgeMap[coord] > edgeMap[coord1]) & (edgeMap[coord] > edgeMap[coord2]), edgeMap[coord]=255, edgeMap[coord]=0)
+    print(s)
+    # edgeMap[coord1]
+    # edgeMap[coord2]
+
+def canny_edge(file_dir,
+               resize_scale=0,
+               ksize=3,
+               sigmaX=1,
+               sigmaY=1):
+
+    # TEST FOR GRAYSCALE IMAGES
+    # Gaussian blurring
+    img = cv2.imread(file_dir, cv2.IMREAD_GRAYSCALE)
+    if resize_scale: img = cv2.resize(img, dsize=(0, 0), fx=resize_scale, fy=resize_scale)
+    imgBlurred = cv2.GaussianBlur(img,
+                                  ksize=(ksize, ksize),
+                                  sigmaX=sigmaX,
+                                  sigmaY=sigmaY)
+    # calculate edge-map
+    Dy, Dx = sobel(imgBlurred)
+    edgeMap = np.sqrt(Dx*Dx + Dy*Dy).astype(np.float)
+    raw, quant = edgeDirection(Dy, Dx)
+    NMS(edgeMap=edgeMap,
+        edgeDirMapQuant=quant)
+
 if __name__ == "__main__" :
 
     file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_01.jpg"
-    thr = otsu_binary(file_dir,resize_scale=0.9)
-    img = binary_image(file_dir, thr)
-    img[img==1] = -1
-    binary = flood_fill(img=img,
-                        mode=4)
-    binary = binary.astype(np.int8)
-    plt.imshow(binary, cmap="gray")
-    plt.show()
+    # thr = otsu_binary(file_dir,resize_scale=0.9)
+    # img = binary_image(file_dir, thr)
+    # img[img==1] = -1
+    # binary = flood_fill(img=img,
+    #                     mode=4)
+    # binary = binary.astype(np.int8)
+    # plt.imshow(binary, cmap="gray")
+    # plt.show()
+    canny_edge(file_dir = file_dir,
+               resize_scale=0.5)
