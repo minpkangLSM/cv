@@ -1,5 +1,6 @@
 import os
 import cv2
+from time import process_time
 from PIL import Image
 import numpy as np
 from matplotlib import pyplot as plt
@@ -242,52 +243,127 @@ def edgeDirection(Dx, Dy):
 
     return edgeDirMapRaw, edgeDirMapQuant
 
-def edgedict(dir):
-    return None
-
-def NMS(edgeMap, edgeDirMapQuant):
+def NMS(edgeMap,
+        edgeDirMapQuant,
+        edge_dir = 8):
     """
     NMS : None Maximum Suppression
     :return:
     """
     edgeMap = np.pad(edgeMap, (1,1))
-    NMSMap = np.zeros_like(edgeMap)
 
-    y = [-1, +1]
-    x = [+1, -1]
+    edge_dict = {
+        0 : {'x' : [+0, -0], 'y' : [+1, -1]},
+        1 : {'x' : [+1, -1], 'y' : [-1, +1]},
+        2 : {'x' : [+1, -1], 'y' : [+0, -0]},
+        3 : {'x' : [+1, -1], 'y' : [+1, -1]},
+        4 : {'x' : [+0, -0], 'y' : [-1, +1]},
+        5 : {'x' : [+1, -1], 'y' : [+1, -1]},
+        6 : {'x' : [+0, -0], 'y' : [-1, +1]},
+        7 : {'x' : [+1, -1], 'y' : [+1, -1]},
+    }
 
-    coord = np.where(edgeDirMapQuant==1)
-    coord1 = np.copy(coord)
-    coord2 = np.copy(coord)
-    coord1 = (coord1[0]+y[0], coord1[1]+x[0])
-    coord2 = (coord2[0]+y[1], coord2[1]+x[1])
-    print(coord)
-    print((edgeMap[coord] > edgeMap[coord1]) & (edgeMap[coord] > edgeMap[coord2]))
-    s = np.where((edgeMap[coord] > edgeMap[coord1]) & (edgeMap[coord] > edgeMap[coord2]), edgeMap[coord]=255, edgeMap[coord]=0)
-    print(s)
-    # edgeMap[coord1]
-    # edgeMap[coord2]
+    for dir in range(edge_dir):
+        dir_dict = edge_dict[dir]
+        y = dir_dict['y']
+        x = dir_dict['x']
+
+        coord = np.where(edgeDirMapQuant==dir)
+        coord1 = np.copy(coord)
+        coord2 = np.copy(coord)
+
+        # 비교대상 추출
+        coord1 = (coord1[0]+y[0], coord1[1]+x[0])
+        coord2 = (coord2[0]+y[1], coord2[1]+x[1])
+
+        # extract target suppressed
+        sup_target = ((edgeMap[coord] <= edgeMap[coord1]) | (edgeMap[coord] <= edgeMap[coord2]))
+        coord_list = np.array([coord[0], coord[1]])
+        idx_target = coord_list[:, sup_target]
+        edgeMap[np.array(idx_target[0,:]), np.array(idx_target[1,:])] = 0
+
+    edgeMap = edgeMap[1:edgeMap.shape[0]-1, 1:edgeMap.shape[1]-1]
+    return edgeMap
+
+def hys_thr(edgeMap,
+            tLow,
+            tHigh):
+
+    edge = np.zeros_like(edgeMap)
+    visited = np.zeros_like(edgeMap)
+    shape = edge.shape
+
+    q = queue()
+    y_coord = [-1, +1, -1, +1, -1, +1, 0, 0]
+    x_coord = [0, 0, -1, +1, +1, -1, -1, +1]
+    q.enqueue([0,0])
+
+    for yj in range(0, shape[0]-1):
+        for xi in range(0, shape[1]-1):
+
+            if visited[yj, xi] == 0:
+                visited[yj, xi] = 1
+                if edgeMap[yj, xi] > tHigh :
+                    if yj!=0 and xi!=0 : q.enqueue([yj, xi])
+                    edge[yj, xi] = 1
+
+            while len(q.q_list) != 0:
+                for _ in q.q_list :
+                    yj, xi = q.dequeue()
+                    for ym, xm in zip(y_coord, x_coord):
+                        yNew = yj+ym
+                        xNew = xi+xm
+                        if yNew >= 0 and yNew < edge.shape[0] and xNew >= 0 and xNew < edge.shape[1] : # 영상의 범위 안에 들어오고
+                            if visited[yNew, xNew] == 0:
+                                visited[yNew, xNew] = 1
+                                if edgeMap[yNew, xNew] > tLow :
+                                    q.enqueue([yNew, xNew])
+                                    edge[yNew, xNew] = 1
+
+    return edge
 
 def canny_edge(file_dir,
+               tLow,
+               tHigh,
                resize_scale=0,
                ksize=3,
                sigmaX=1,
                sigmaY=1):
 
-    # TEST FOR GRAYSCALE IMAGES
-    # Gaussian blurring
+    # load image
     img = cv2.imread(file_dir, cv2.IMREAD_GRAYSCALE)
     if resize_scale: img = cv2.resize(img, dsize=(0, 0), fx=resize_scale, fy=resize_scale)
+    plt.subplot(131)
+    plt.title("IMAGE_ORIGINAL")
+    plt.imshow(img,  cmap='gray')
+
+    # Gaussian blurring
     imgBlurred = cv2.GaussianBlur(img,
                                   ksize=(ksize, ksize),
                                   sigmaX=sigmaX,
                                   sigmaY=sigmaY)
+
     # calculate edge-map
     Dy, Dx = sobel(imgBlurred)
     edgeMap = np.sqrt(Dx*Dx + Dy*Dy).astype(np.float)
     raw, quant = edgeDirection(Dy, Dx)
-    NMS(edgeMap=edgeMap,
-        edgeDirMapQuant=quant)
+
+    # None Maximum Suppression
+    edgeMap = NMS(edgeMap=edgeMap,
+                  edgeDirMapQuant=quant)
+    plt.subplot(132)
+    plt.title("EDGE INTENSITY NMS")
+    plt.imshow(edgeMap, cmap='gray')
+
+    # hysteresis thresholding
+    edge = hys_thr(edgeMap=edgeMap,
+                   tLow=tLow,
+                   tHigh=tHigh)
+    edge_final = img+edge*255
+    plt.subplot(133)
+    plt.title("RESULTS")
+    plt.imshow(edge_final, cmap='gray')
+    plt.show()
 
 if __name__ == "__main__" :
 
@@ -300,5 +376,13 @@ if __name__ == "__main__" :
     # binary = binary.astype(np.int8)
     # plt.imshow(binary, cmap="gray")
     # plt.show()
+
+    t1 = process_time()
     canny_edge(file_dir = file_dir,
-               resize_scale=0.5)
+               tLow=50,
+               tHigh=100,
+               resize_scale=0.5,
+               sigmaX=3,
+               sigmaY=3)
+    t2 = process_time()
+    print(t2-t1)
