@@ -213,7 +213,10 @@ def sobel(img):
 
     return imgDy, imgDx
 
-def edgeDirection(Dx, Dy):
+def edgeDirection(Dy,
+                  Dx,
+                  Dyx=None,
+                  mode=0):
     """
     -27.5 <= deg < 27.5 : 0
     27.5 <= deg < 72.5 : 1
@@ -225,11 +228,15 @@ def edgeDirection(Dx, Dy):
     -117.5 <= deg < -72.5 : 6
     -72.5 <= deg < -27.5 : 7
     90 <= deg < 135
-    :param Dx:
-    :param Dy:
+    :param Dy: Dx calculated by sobel y
+    :param Dx: Dy calculated by sobel x
+    :param mode : 0 - default / 1 - de genzo
     :return:
     """
-    edgeDirMapRaw = np.rad2deg(np.arctan2(Dy, Dx))
+    if mode not in [0, 1] : raise ValueError("MODE has 2 values : 0 - default, 1 - di genzo mode.")
+    # if (mode==1) & (Dyx==None) : raise ValueError("It is necessary for MODE=1(De genzo) to have Dyx value.")
+    if mode==0 : edgeDirMapRaw = np.rad2deg(np.arctan2(Dy, Dx))
+    elif mode==1 : edgeDirMapRaw = np.rad2deg(np.arctan2(2*Dyx, (Dx-Dy)))
     edgeDirMapQuant = np.zeros_like(edgeDirMapRaw)
     edgeDirMapQuant[np.where((edgeDirMapRaw >= -27.5) & (edgeDirMapRaw < 27.5))] = 0
     edgeDirMapQuant[np.where((edgeDirMapRaw >= 27.5) & (edgeDirMapRaw < 72.5))] = 1
@@ -322,7 +329,8 @@ def hys_thr(edgeMap,
 
     return edge
 
-def canny_edge(file_dir,
+def canny_edge(img,
+               imread_mode,
                tLow,
                tHigh,
                resize_scale=0,
@@ -330,12 +338,62 @@ def canny_edge(file_dir,
                sigmaX=1,
                sigmaY=1):
 
+    t1 = process_time()
     # load image
-    img = cv2.imread(file_dir, cv2.IMREAD_GRAYSCALE)
+    img = img
+
+    # resize image
     if resize_scale: img = cv2.resize(img, dsize=(0, 0), fx=resize_scale, fy=resize_scale)
-    plt.subplot(131)
-    plt.title("IMAGE_ORIGINAL")
-    plt.imshow(img,  cmap='gray')
+
+    # distinguish GRAY or RGB
+    if len(img.shape)==2 :
+        channels = 1 # gray scale
+    elif len(img.shape)>=3 :
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # BGR to RGB
+        channels = img.shape[2] # RGB or over than RGB channels
+
+    # Gaussian Blurring
+    imgBlurred = cv2.GaussianBlur(img,
+                                  ksize=(ksize, ksize),
+                                  sigmaX=sigmaX,
+                                  sigmaY=sigmaY)
+    if len(imgBlurred.shape)==2 : imgBlurred = np.expand_dims(imgBlurred, -1)
+
+    img_frame = np.zeros_like(imgBlurred)
+
+    for channel in range(channels) :
+
+        gray_scale = imgBlurred[:, :, channel]
+        # calculate edge-map
+        Dy, Dx = sobel(gray_scale)
+        edgeMap = np.sqrt(Dx*Dx + Dy*Dy).astype(np.float)
+        raw, quant = edgeDirection(Dy, Dx)
+
+        # None Maximum Suppression
+        edgeMagnitude = NMS(edgeMap=edgeMap,
+                            edgeDirMapQuant=quant)
+
+        # hysteresis thresholding
+        edge = hys_thr(edgeMap=edgeMagnitude,
+                       tLow=tLow,
+                       tHigh=tHigh)
+        img_frame[:, :, channel] = edge
+    t2 = process_time()
+    return img_frame
+
+def canny_edge_genzo(img,
+                     tLow,
+                     tHigh,
+                     resize_scale=0,
+                     ksize=3,
+                     sigmaX=3,
+                     sigmaY=3,):
+
+    t1 = process_time()
+    # load image
+    img = img
+    # reszie the image
+    if resize_scale : img = cv2.resize(img, dsize=(0, 0), fx=resize_scale, fy=resize_scale)
 
     # Gaussian blurring
     imgBlurred = cv2.GaussianBlur(img,
@@ -343,31 +401,36 @@ def canny_edge(file_dir,
                                   sigmaX=sigmaX,
                                   sigmaY=sigmaY)
 
-    # calculate edge-map
-    Dy, Dx = sobel(imgBlurred)
-    edgeMap = np.sqrt(Dx*Dx + Dy*Dy).astype(np.float)
-    raw, quant = edgeDirection(Dy, Dx)
+    # edge intensity, direction
+    Dry, Drx = sobel(imgBlurred[:,:,0]) # Red derivation
+    Dgy, Dgx = sobel(imgBlurred[:,:,1]) # Green derivation
+    Dby, Dbx = sobel(imgBlurred[:,:,2]) # Blue derivation
+
+    gyy = Dry*Dry + Dgy*Dgy + Dby*Dby
+    gxx = Drx*Drx + Dgx*Dgx + Dbx+Dbx
+    gyx = Dry*Drx + Dgy*Dgx + Dby*Dbx
+
+    raw, quant = edgeDirection(Dy=gyy,
+                               Dx=gxx,
+                               Dyx=gyx,
+                               mode=1)
+    edgeMagnitude = np.sqrt(0.5 * ((gyy + gxx) - (gxx - gyy) * np.cos(2 * raw) + 2 * gyx * np.sin(2 * raw)))
 
     # None Maximum Suppression
-    edgeMap = NMS(edgeMap=edgeMap,
+    edgeMap = NMS(edgeMap=edgeMagnitude,
                   edgeDirMapQuant=quant)
-    plt.subplot(132)
-    plt.title("EDGE INTENSITY NMS")
-    plt.imshow(edgeMap, cmap='gray')
 
     # hysteresis thresholding
     edge = hys_thr(edgeMap=edgeMap,
                    tLow=tLow,
                    tHigh=tHigh)
-    edge_final = img+edge*255
-    plt.subplot(133)
-    plt.title("RESULTS")
-    plt.imshow(edge_final, cmap='gray')
-    plt.show()
+    t2 = process_time()
+    print(t2-t1)
+    return edge
 
 if __name__ == "__main__" :
 
-    file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_01.jpg"
+    file_dir = "D:\\cv\\data\\prac\\clipped_cake.png"
     # thr = otsu_binary(file_dir,resize_scale=0.9)
     # img = binary_image(file_dir, thr)
     # img[img==1] = -1
@@ -377,12 +440,44 @@ if __name__ == "__main__" :
     # plt.imshow(binary, cmap="gray")
     # plt.show()
 
-    t1 = process_time()
-    canny_edge(file_dir = file_dir,
-               tLow=50,
-               tHigh=100,
-               resize_scale=0.5,
-               sigmaX=3,
-               sigmaY=3)
-    t2 = process_time()
-    print(t2-t1)
+    ## CANNY EDGE
+    # edge_results = canny_edge(file_dir=file_dir,
+    #                           imread_mode=1,
+    #                           tLow=50,
+    #                           tHigh=100,
+    #                           resize_scale=0.5,
+    #                           sigmaX=5,
+    #                           sigmaY=5)
+
+    # Yellow : Red+Green, Magenta : Red+Blue, Cyan : Green + Blue
+
+    ## CANNY EDGE DI GENZO
+    # edge_results2 = canny_edge_genzo(file_dir = file_dir,
+    #                                  tLow = 50,
+    #                                  tHigh = 100,
+    #                                  resize_scale=0.5,
+    #                                  sigmaX=5,
+    #                                  sigmaY=5)
+
+    # video version
+    capture = cv2.VideoCapture(0)
+    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
+
+    while cv2.waitKey(50) < 0:
+        ret, frame = capture.read()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edge_results = canny_edge(img=frame,
+                                  imread_mode=0,
+                                  tLow=50,
+                                  tHigh=100,
+                                  resize_scale=0,
+                                  sigmaX=5,
+                                  sigmaY=5)
+        cv2.imshow("VideoFrame", edge_results*255)
+
+    capture.release()
+    cv2.destroyAllWindows()
+
+
+

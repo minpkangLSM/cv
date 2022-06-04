@@ -116,6 +116,7 @@ def rotation(file_dir,
     plt.show()
 
 if __name__ == "__main__" :
+    pass
     # file_dir = "D:/cv/data/prac/KakaoTalk_20220518_215457616_01.jpg"
     # rotation(file_dir=file_dir,
     #          theta=10,
