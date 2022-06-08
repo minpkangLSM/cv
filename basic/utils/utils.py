@@ -5,6 +5,9 @@ class queue :
     def __init__(self):
         self.q_list = []
 
+    def initQueue(self):
+        self.q_list = []
+
     def enqueue(self, value):
         self.q_list.append(value)
 

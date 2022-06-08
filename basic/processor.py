@@ -379,6 +379,7 @@ def canny_edge(img,
                        tHigh=tHigh)
         img_frame[:, :, channel] = edge
     t2 = process_time()
+    print("CANNY PROCESSING TIME : {0}s".format(t2-t1))
     return img_frame
 
 def canny_edge_genzo(img,
@@ -428,9 +429,151 @@ def canny_edge_genzo(img,
     print(t2-t1)
     return edge
 
+def SPTA(img):
+    # reshape img 3 dims into 2 dim
+    img = np.reshape(img, (img.shape[0], img.shape[1]))
+    # pad image
+    img = np.pad(img, (1,1))
+    initImg = img
+    count = 0
+    t1 = process_time()
+    while True :
+        count+=1
+        edgeIndex = np.where(initImg == 1)
+        edgeBoolean = np.where(initImg == 1, True, False)
+
+        n0 = edgeBoolean[(edgeIndex[0]    , edgeIndex[1] + 1)]
+        n1 = edgeBoolean[(edgeIndex[0] + 1, edgeIndex[1] + 1)]
+        n2 = edgeBoolean[(edgeIndex[0] + 1, edgeIndex[1]    )]
+        n3 = edgeBoolean[(edgeIndex[0] + 1, edgeIndex[1] - 1)]
+        n4 = edgeBoolean[(edgeIndex[0]    , edgeIndex[1] - 1)]
+        n5 = edgeBoolean[(edgeIndex[0] - 1, edgeIndex[1] - 1)]
+        n6 = edgeBoolean[(edgeIndex[0] - 1, edgeIndex[1]    )]
+        n7 = edgeBoolean[(edgeIndex[0] - 1, edgeIndex[1] + 1)]
+
+        mask0 = np.invert(n0) & (n4 & (n5 | n6 | n2 | n3) & (n6 | np.invert(n7)) & (n2 | np.invert(n1)))
+        mask2 = np.invert(n4) & (n0 & (n1 | n2 | n6 | n7) & (n2 | np.invert(n3)) & (n6 | np.invert(n5)))
+        mask4 = np.invert(n2) & (n6 & (n7 | n0 | n4 | n5) & (n0 | np.invert(n1)) & (n4 | np.invert(n3)))
+        mask6 = np.invert(n6) & (n2 & (n3 | n4 | n0 | n1) & (n4 | np.invert(n5)) & (n0 | np.invert(n7)))
+        merge = (mask0 | mask2 | mask4 | mask6)
+        if not merge.any() :
+            break
+        noneEdge = (edgeIndex[0][merge], edgeIndex[1][merge])
+        initImg[noneEdge] = 0
+
+    # remove pad
+    img = initImg[1:img.shape[0] - 1, 1:img.shape[1] - 1]
+    t2 = process_time()
+    print("SPTA PROCESSING TIME : {0}s".format(t2-t1))
+    return img
+
+"""
+# deprecated version, 이유 : 병렬문으로 처리하는 것(def SPTA)과 동일한 결과를 보이나, 소요시간이 10배 이상 더 걸림
+def SPTA_loop(img):
+    # reshape img 3 dims into 2 dim
+    img = np.reshape(img, (img.shape[0], img.shape[1]))
+    # pad image
+    img = np.pad(img, (1,1))
+    init_img = img
+    count = 0
+    t1 = process_time()
+    while True :
+        count+=1
+        edge_index = np.where(init_img == 1)
+        edge_boolean = np.where(init_img == 1, True, False)
+        loop = False
+
+        for j, i in zip(edge_index[0], edge_index[1]):
+
+            n0 = edge_boolean[j  , i+1]
+            n1 = edge_boolean[j+1, i+1]
+            n2 = edge_boolean[j+1, i  ]
+            n3 = edge_boolean[j+1, i-1]
+            n4 = edge_boolean[j  , i-1]
+            n5 = edge_boolean[j-1, i-1]
+            n6 = edge_boolean[j-1, i  ]
+            n7 = edge_boolean[j-1, i+1]
+
+            mask0 = np.invert(n0) & (n4 & (n5 | n6 | n2 | n3) & (n6 | np.invert(n7)) & (n2 | np.invert(n1)))
+            mask2 = np.invert(n4) & (n0 & (n1 | n2 | n6 | n7) & (n2 | np.invert(n3)) & (n6 | np.invert(n5)))
+            mask4 = np.invert(n2) & (n6 & (n7 | n0 | n4 | n5) & (n0 | np.invert(n1)) & (n4 | np.invert(n3)))
+            mask6 = np.invert(n6) & (n2 & (n3 | n4 | n0 | n1) & (n4 | np.invert(n5)) & (n0 | np.invert(n7)))
+            merge = (mask0 | mask2 | mask4 | mask6)
+
+            if merge :
+                loop = True
+                init_img[j,i]=0
+
+        if not loop : break
+    print(count)
+    img = init_img[1:img.shape[0] - 1, 1:img.shape[1] - 1]
+    t2 = process_time()
+    print(t2-t1)
+    return img
+"""
+
+def edgeSegment(img):
+    """
+    :param img: 에지 이미지
+    :return:
+    """
+    # find end or bifurcation point
+    q = queue()
+    img = np.pad(img, (1,1))
+    edgeIndex = np.where(img==1)
+    n0_group = img[(edgeIndex[0]    , edgeIndex[1] + 1)]
+    n1_group = img[(edgeIndex[0] + 1, edgeIndex[1] + 1)]
+    n2_group = img[(edgeIndex[0] + 1, edgeIndex[1]    )]
+    n3_group = img[(edgeIndex[0] + 1, edgeIndex[1] - 1)]
+    n4_group = img[(edgeIndex[0]    , edgeIndex[1] - 1)]
+    n5_group = img[(edgeIndex[0] - 1, edgeIndex[1] - 1)]
+    n6_group = img[(edgeIndex[0] - 1, edgeIndex[1]    )]
+    n7_group = img[(edgeIndex[0] - 1, edgeIndex[1] + 1)]
+
+    idx = 0
+    for n0, n1, n2, n3, n4, n5, n6, n7 in zip(n0_group, n1_group, n2_group, n3_group, n4_group, n5_group, n6_group, n7_group):
+        count = 0
+        dirList = []
+        if n0 == 1 and n1 == 0 :
+            count+=1
+            dirList.append(0)
+        if n1 == 1 and n2 == 0 :
+            count+=1
+            dirList.append(1)
+        if n2 == 1 and n3 == 0 :
+            count+=1
+            dirList.append(2)
+        if n3 == 1 and n4 == 0 :
+            count+=1
+            dirList.append(3)
+        if n4 == 1 and n5 == 0 :
+            count+=1
+            dirList.append(4)
+        if n5 == 1 and n6 == 0 :
+            count+=1
+            dirList.append(5)
+        if n6 == 1 and n7 == 0 :
+            count+=1
+            dirList.append(6)
+        if n7 == 1 and n0 == 0 :
+            count+=1
+            dirList.append(7)
+        if count==1 or count>=3:
+            for dir in dirList : q.enqueue([edgeIndex[0][idx], edgeIndex[1][idx], dir])
+        idx += 1
+
+    # start edge segmentation
+    numEdge = 0
+    visited = np.zeros_like(img)
+    while len(q.q_list)!=0 :
+        # 2022년 6월 10일에 이어서
+
+
+
+
 if __name__ == "__main__" :
 
-    file_dir = "D:\\cv\\data\\prac\\clipped_cake.png"
+    file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_02.jpg"
     # thr = otsu_binary(file_dir,resize_scale=0.9)
     # img = binary_image(file_dir, thr)
     # img[img==1] = -1
@@ -440,14 +583,23 @@ if __name__ == "__main__" :
     # plt.imshow(binary, cmap="gray")
     # plt.show()
 
-    ## CANNY EDGE
-    # edge_results = canny_edge(file_dir=file_dir,
-    #                           imread_mode=1,
-    #                           tLow=50,
-    #                           tHigh=100,
-    #                           resize_scale=0.5,
-    #                           sigmaX=5,
-    #                           sigmaY=5)
+    # CANNY EDGE
+    img = cv2.imread(file_dir, 0)
+    edge_results = canny_edge(img=img,
+                              imread_mode=0,
+                              tLow=50,
+                              tHigh=100,
+                              resize_scale=0.5,
+                              sigmaX=5,
+                              sigmaY=5)
+
+    spta_fast = SPTA(edge_results)
+
+    edgeSegment(spta_fast)
+
+
+
+
 
     # Yellow : Red+Green, Magenta : Red+Blue, Cyan : Green + Blue
 
@@ -459,25 +611,25 @@ if __name__ == "__main__" :
     #                                  sigmaX=5,
     #                                  sigmaY=5)
 
-    # video version
-    capture = cv2.VideoCapture(0)
-    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
-
-    while cv2.waitKey(50) < 0:
-        ret, frame = capture.read()
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        edge_results = canny_edge(img=frame,
-                                  imread_mode=0,
-                                  tLow=50,
-                                  tHigh=100,
-                                  resize_scale=0,
-                                  sigmaX=5,
-                                  sigmaY=5)
-        cv2.imshow("VideoFrame", edge_results*255)
-
-    capture.release()
-    cv2.destroyAllWindows()
+    # # video version
+    # capture = cv2.VideoCapture(0)
+    # capture.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    # capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
+    #
+    # while cv2.waitKey(50) < 0:
+    #     ret, frame = capture.read()
+    #     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    #     edge_results = canny_edge(img=frame,
+    #                               imread_mode=0,
+    #                               tLow=50,
+    #                               tHigh=100,
+    #                               resize_scale=0,
+    #                               sigmaX=5,
+    #                               sigmaY=5)
+    #     cv2.imshow("VideoFrame", edge_results*255)
+    #
+    # capture.release()
+    # cv2.destroyAllWindows()
 
 
 
