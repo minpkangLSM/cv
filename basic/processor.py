@@ -517,8 +517,9 @@ def edgeSegment(img):
     :param img: 에지 이미지
     :return:
     """
+    t1 = process_time()
     # find end or bifurcation point
-    q = queue()
+    endBifDict = {}
     img = np.pad(img, (1,1))
     edgeIndex = np.where(img==1)
     n0_group = img[(edgeIndex[0]    , edgeIndex[1] + 1)]
@@ -559,17 +560,97 @@ def edgeSegment(img):
             count+=1
             dirList.append(7)
         if count==1 or count>=3:
-            for dir in dirList : q.enqueue([edgeIndex[0][idx], edgeIndex[1][idx], dir])
+            endBifDict[(edgeIndex[0][idx], edgeIndex[1][idx])] = dirList
         idx += 1
 
     # start edge segmentation
-    numEdge = 0
+    segId = 0
     visited = np.zeros_like(img)
-    while len(q.q_list)!=0 :
-        # 2022년 6월 10일에 이어서
 
+    # initialize seg_dict, cy, cx
+    segDict = {}
+    cy=0
+    cx=0
 
+    # define front pixel location
+    frontLoc = {
+        0 : [[-1, +1, 7], [ 0, +1, 0], [+1, +1, 1]],
+        1 : [[-1, +1, 7], [ 0, +1, 0], [+1, +1, 1], [+1,  0, 2], [+1, -1, 3]],
+        2 : [[+1, -1, 3], [+1,  0, 2], [+1, +1, 1]],
+        3 : [[-1, -1, 5], [ 0, -1, 4], [+1, -1, 3], [+1,  0, 2], [+1, +1, 1]],
+        4 : [[-1, -1, 5], [ 0, -1, 4], [+1, -1, 3]],
+        5 : [[+1, -1, 3], [ 0, -1, 4], [-1, -1, 5], [-1,  0, 6], [-1, +1, 7]],
+        6 : [[-1, -1, 5], [-1,  0, 6], [-1, +1, 7]],
+        7 : [[-1, -1, 5], [-1,  0, 6], [-1, +1, 7], [ 0, +1, 0], [+1, +1, 1]]
+    }
 
+    endBifList = endBifDict.keys()
+    for coord, dirList in endBifDict.items() :
+        y = coord[0]
+        x = coord[1]
+        for part_dir in dirList :
+            segTmpList = []
+            if part_dir==0 :
+                cy = y
+                cx=x+1
+            elif part_dir==1:
+                cy=y+1
+                cx=x+1
+            elif part_dir==2:
+                cy=y+1
+                cx = x
+            elif part_dir==3:
+                cy=y+1
+                cx=x-1
+            elif part_dir==4:
+                cy = y
+                cx=x-1
+            elif part_dir==5:
+                cy=y-1
+                cx=x-1
+            elif part_dir==6:
+                cy=y-1
+                cx = x
+            elif part_dir==7:
+                cy=y-1
+                cx=x+1
+            if visited[cy,cx]==1 : continue
+
+            # increase segment id(segID)
+            segId+=1
+            segTmpList.append((y,x))
+            segTmpList.append((cy,cx))
+            visited[y,x]=1
+            visited[cy,cx]=1
+            # 두 칸짜리 토막
+            if (cy,cx) in endBifList : continue
+            switch = True
+            while switch :
+                # investigate front pixels
+                moveLocs = frontLoc[part_dir]
+                for my, mx, sub_dir in moveLocs :
+                    frontCoord = (cy+my, cx+mx)
+                    if img[frontCoord[0], frontCoord[1]]==1 :
+                        if frontCoord in endBifList : # 마디 끝
+                            segTmpList.append(frontCoord)
+                            visited[frontCoord[0], frontCoord[1]] = 1
+                            switch = False # while loop 문 끝
+                            break
+                        # 만일 frontCoord가 이민 segTmpList 내에 존재하면, 원형에서 돌고 있으므로 벗어나야 한다.
+                        if frontCoord in segTmpList :
+                            switch = False
+                            break
+                        segTmpList.append(frontCoord)
+                        visited[frontCoord[0], frontCoord[1]] = 1
+                        cy = frontCoord[0]
+                        cx = frontCoord[1]
+                        part_dir = sub_dir
+                        break
+
+            segDict[segId] = segTmpList
+    t2 = process_time()
+    print("EDGE SEGMENTATION TIME : {0}s".format(t2-t1))
+    return segDict
 
 if __name__ == "__main__" :
 
@@ -589,13 +670,13 @@ if __name__ == "__main__" :
                               imread_mode=0,
                               tLow=50,
                               tHigh=100,
-                              resize_scale=0.5,
+                              resize_scale=1,
                               sigmaX=5,
                               sigmaY=5)
 
     spta_fast = SPTA(edge_results)
+    edgeSeg = edgeSegment(spta_fast)
 
-    edgeSegment(spta_fast)
 
 
 
