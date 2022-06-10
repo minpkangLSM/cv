@@ -522,6 +522,7 @@ def edgeSegment(img):
     endBifDict = {}
     img = np.pad(img, (1,1))
     edgeIndex = np.where(img==1)
+
     n0_group = img[(edgeIndex[0]    , edgeIndex[1] + 1)]
     n1_group = img[(edgeIndex[0] + 1, edgeIndex[1] + 1)]
     n2_group = img[(edgeIndex[0] + 1, edgeIndex[1]    )]
@@ -589,6 +590,8 @@ def edgeSegment(img):
         y = coord[0]
         x = coord[1]
         for part_dir in dirList :
+            tmpY = []
+            tmpX = []
             segTmpList = []
             if part_dir==0 :
                 cy = y
@@ -618,10 +621,15 @@ def edgeSegment(img):
 
             # increase segment id(segID)
             segId+=1
-            segTmpList.append((y,x))
-            segTmpList.append((cy,cx))
+            tmpY.append(y)
+            tmpX.append(x)
+            tmpY.append(cy)
+            tmpX.append(cx)
+            segTmpList.append((y, x))
+            segTmpList.append((cy, cx))
             visited[y,x]=1
             visited[cy,cx]=1
+
             # 두 칸짜리 토막
             if (cy,cx) in endBifList : continue
             switch = True
@@ -632,6 +640,8 @@ def edgeSegment(img):
                     frontCoord = (cy+my, cx+mx)
                     if img[frontCoord[0], frontCoord[1]]==1 :
                         if frontCoord in endBifList : # 마디 끝
+                            tmpY.append(frontCoord[0])
+                            tmpX.append(frontCoord[1])
                             segTmpList.append(frontCoord)
                             visited[frontCoord[0], frontCoord[1]] = 1
                             switch = False # while loop 문 끝
@@ -640,6 +650,8 @@ def edgeSegment(img):
                         if frontCoord in segTmpList :
                             switch = False
                             break
+                        tmpY.append(frontCoord[0])
+                        tmpX.append(frontCoord[1])
                         segTmpList.append(frontCoord)
                         visited[frontCoord[0], frontCoord[1]] = 1
                         cy = frontCoord[0]
@@ -647,7 +659,7 @@ def edgeSegment(img):
                         part_dir = sub_dir
                         break
 
-            segDict[segId] = segTmpList
+            segDict[segId] = (np.array(tmpY, dtype=np.int64), np.array(tmpX, dtype=np.int64))
     t2 = process_time()
     print("EDGE SEGMENTATION TIME : {0}s".format(t2-t1))
     return segDict
@@ -666,21 +678,32 @@ if __name__ == "__main__" :
 
     # CANNY EDGE
     img = cv2.imread(file_dir, 0)
+
     edge_results = canny_edge(img=img,
                               imread_mode=0,
                               tLow=50,
                               tHigh=100,
                               resize_scale=1,
-                              sigmaX=5,
-                              sigmaY=5)
+                              sigmaX=3,
+                              sigmaY=3)
 
     spta_fast = SPTA(edge_results)
     edgeSeg = edgeSegment(spta_fast)
+    test = np.zeros_like(spta_fast)
+    test = np.pad(test, (1, 1))
+    test = np.stack([np.zeros_like(test), np.zeros_like(test), np.zeros_like(test)], axis=-1)
 
-
-
-
-
+    img = cv2.imread(file_dir, 1)
+    print(img.shape)
+    img = np.pad(img, (1, 1), 'edge')[:, :, 1:4]
+    print(img.shape)
+    for seg in edgeSeg.values() :
+        test[seg] = np.array([[np.random.randint(0, 255, 1)[0], np.random.randint(0, 255, 1)[0], np.random.randint(0, 255, 1)[0]]])
+        img[seg] = np.array([[0, 0, 0]])
+    ti = test+img
+    ti = cv2.cvtColor(ti, cv2.COLOR_BGR2RGB)
+    plt.imshow(ti)
+    plt.show()
 
     # Yellow : Red+Green, Magenta : Red+Blue, Cyan : Green + Blue
 
