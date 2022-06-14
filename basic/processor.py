@@ -350,12 +350,12 @@ class edgeDetection :
                    resize_scale=0,
                    ksize=3,
                    sigmaX=1,
-                   sigmaY=1):
+                   sigmaY=1,
+                   time=None):
 
         t1 = process_time()
         # load image
         img = img
-
         # resize image
         if resize_scale: img = cv2.resize(img, dsize=(0, 0), fx=resize_scale, fy=resize_scale)
 
@@ -365,7 +365,6 @@ class edgeDetection :
         elif len(img.shape) >= 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # BGR to RGB
             channels = img.shape[2]  # RGB or over than RGB channels
-
         # Gaussian Blurring
         imgBlurred = cv2.GaussianBlur(img,
                                       ksize=(ksize, ksize),
@@ -393,7 +392,7 @@ class edgeDetection :
                                          tHigh=tHigh)
             img_frame[:, :, channel] = edge
         t2 = process_time()
-        print("CANNY PROCESSING TIME : {0}s".format(t2 - t1))
+        if time : print("CANNY PROCESSING TIME : {0}s".format(t2 - t1))
         return img_frame
 
     @staticmethod
@@ -702,53 +701,77 @@ class linedetection :
 
     @staticmethod
     def hough(edge_img,
-              thr):
+              thr,
+              img=None,
+              time=None):
         # global operation, perceptual grouping
-
+        t1 = process_time()
         # img shape
         shape = edge_img.shape
         D = int(np.sqrt(shape[0]*shape[0]+shape[1]*shape[1]))
-        thetaList = [i+1 for i in range(180)]
+        thetaList = np.array([i for i in range(-90, 91)])
         radList = np.deg2rad(thetaList)
 
         # get edge index
         edgeIndex = np.where(edge_img==1)
 
-        # make accumulate array
-        accArray = np.zeros((D, 181))
+        # make accumulate array :
+        # -D <= p <= D
+        # -90 <= theta <= 90 (deg)
+        accArray = np.zeros((2*D, 181))
 
+        lineCandidate = {}
         for edgeY, edgeX in zip(edgeIndex[0], edgeIndex[1]) :
+
             pCeil = np.ceil(edgeY*np.cos(radList)+edgeX*np.sin(radList)).astype(np.int64)
-            # plt.plot(thetaList, pCeil)
-            accArray[(np.array(pCeil, dtype=np.int64), np.array(thetaList, dtype=np.int64))] += 1
-        # plt.gca().invert_yaxis()
-        # plt.show()
+            pCeil = pCeil + D
+            tmpThetaList = thetaList + 90
+            accArray[(np.array(pCeil, dtype=np.int64), np.array(tmpThetaList, dtype=np.int64))] += 1
 
+            # for p, t in zip(pCeil, tmpThetaList):
+            #     if (p-D,t-90) not in lineCandidate.keys() :
+            #         lineCandidate[(p - D, t - 90)] = [np.array([], dtype=np.int64), np.array([], dtype=np.int64)]
+            #     lineCandidate[(p-D,t-90)][0] = np.append(lineCandidate[(p-D,t-90)][0], edgeY)
+            #     lineCandidate[(p-D,t-90)][1] = np.append(lineCandidate[(p-D,t-90)][1], edgeX)
+
+        t2 = process_time()
         lineIdx = np.where(accArray>=thr)
-        xList = np.array([x for x in range(shape[1])])
-        for lineP, lineTheta in zip(lineIdx[0], lineIdx[1]):
-            y = (-np.sin(np.deg2rad(lineTheta))/np.cos(np.deg2rad(lineTheta)))*xList + lineP/np.cos(np.deg2rad(lineTheta))
-            plt.plot(y, xList)
+        x = np.array([i for i in range(shape[1])])
+        fig = plt.figure()
+        plt.imshow(img, cmap='gray')
+        for p, t in zip(lineIdx[0], lineIdx[1]) :
+            y = (-np.sin(np.deg2rad(t-90))*x + p-D)//np.cos(np.deg2rad(t-90))
+            plt.plot(x, y, color='orange', alpha=0.1)
+        plt.xlim(0, shape[1])
+        plt.ylim(0, shape[0])
         plt.gca().invert_yaxis()
-        plt.show()
+        fig.canvas.draw()
+        f_arr = np.array(fig.canvas.renderer._renderer)
 
+        if time!=None : print("Hough PLT to ARRAY PROCESSING TIME : ", t2 - t1)
+        return f_arr
 
+        # for p, t in zip(lineIdx[0], lineIdx[1]) :
+        #     line = tuple(lineCandidate[(p-D, t-90)])
+        #     tempArray[line] = 255
+        # plt.imshow(tempArray, cmap='gray')
+        # plt.show()
 
 if __name__ == "__main__" :
 
     # setting image directory
-    file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_02.jpg"
+    file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220526_233319312.jpg"
 
     # hough
-    img = cv2.imread(file_dir, 0)
-    edge = edgeDetection.canny_edge(img=img,
-                                    tLow=20,
-                                    resize_scale=0.3,
-                                    tHigh=70,
-                                    sigmaX=3,
-                                    sigmaY=3)
-    linedetection.hough(edge_img=edge,
-                        thr=50)
+    # img = cv2.imread(file_dir, 0)
+    # edge = edgeDetection.canny_edge(img=img,
+    #                                 tLow=20,
+    #                                 resize_scale=0.3,
+    #                                 tHigh=70,
+    #                                 sigmaX=5,
+    #                                 sigmaY=5)
+    # s = linedetection.hough(edge_img=edge,
+    #                         thr=30)
 
     # CANNY EDGE
     # img = cv2.imread(file_dir, 0)
@@ -787,25 +810,27 @@ if __name__ == "__main__" :
     #                                  sigmaX=5,
     #                                  sigmaY=5)
 
-    # # video version
-    # capture = cv2.VideoCapture(0)
-    # capture.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-    # capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 320)
-    #
-    # while cv2.waitKey(50) < 0:
-    #     ret, frame = capture.read()
-    #     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #     edge_results = canny_edge(img=frame,
-    #                               imread_mode=0,
-    #                               tLow=50,
-    #                               tHigh=100,
-    #                               resize_scale=0,
-    #                               sigmaX=5,
-    #                               sigmaY=5)
-    #     cv2.imshow("VideoFrame", edge_results*255)
-    #
-    # capture.release()
-    # cv2.destroyAllWindows()
+    # video version
+    capture = cv2.VideoCapture(0)
+    capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
+    capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 256)
+
+    while cv2.waitKey(1) < 0:
+        ret, frame = capture.read()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        edge_img = edgeDetection.canny_edge(img=frame,
+                                             tLow=50,
+                                             tHigh=100,
+                                             resize_scale=0,
+                                             sigmaX=5,
+                                             sigmaY=5)
+        line = linedetection.hough(edge_img=edge_img,
+                                   img=frame,
+                                   thr=32)
+        cv2.imshow("VideoFrame", line)
+
+    capture.release()
+    cv2.destroyAllWindows()
 
 
 
