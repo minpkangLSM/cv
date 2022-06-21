@@ -1,8 +1,10 @@
 import os
 import cv2
-from time import process_time
-from PIL import Image
 import numpy as np
+import numba as nb
+from PIL import Image
+from time import process_time
+from numba import njit, jit, int16, int32, int64, float32, float64, typed
 from matplotlib import pyplot as plt
 from utils.utils import *
 os.path.join("..data\prac")
@@ -219,6 +221,19 @@ class filter :
 
         return imgDy, imgDx
 
+    @staticmethod
+    def gaussian(img,
+                 ksize,
+                 sigmaX,
+                 sigmaY):
+
+        imgBlurred = cv2.GaussianBlur(img,
+                                      ksize=(ksize, ksize),
+                                      sigmaX=sigmaX,
+                                      sigmaY=sigmaY)
+        return imgBlurred
+
+
 class edgeDetection :
 
     @staticmethod
@@ -402,7 +417,7 @@ class edgeDetection :
                          resize_scale=0,
                          ksize=3,
                          sigmaX=3,
-                         sigmaY=3, ):
+                         sigmaY=3):
 
         t1 = process_time()
         # load image
@@ -534,10 +549,8 @@ class thinning :
                     init_img[j,i]=0
 
             if not loop : break
-        print(count)
         img = init_img[1:img.shape[0] - 1, 1:img.shape[1] - 1]
         t2 = process_time()
-        print(t2-t1)
         return img
 
 class linedetection :
@@ -700,78 +713,132 @@ class linedetection :
         return segDict
 
     @staticmethod
+    @njit(int64[:,:](float32[:], float32[:], float32[:], float32[:], int64))
+    def faster(edgeYIndex, edgeXIndex, radList, thetaList, D):
+
+        accArr = np.zeros((D*2, 181)).astype(np.int64)
+
+        for edgeY, edgeX in zip(edgeYIndex, edgeXIndex):
+            pCeil = np.ceil(edgeY * np.cos(radList) + edgeX * np.sin(radList))
+            pCeil = pCeil + D
+            tmpThetaList = thetaList.astype(np.int64) + 90
+            for p, t in zip(pCeil.astype(np.int64), tmpThetaList.astype(np.int64)):
+                accArr[p,t] = accArr[p,t]+1
+
+        return accArr
+
+    @staticmethod
     def hough(edge_img,
               thr,
+              unit=1,
               img=None,
               time=None):
-        # global operation, perceptual grouping
-        t1 = process_time()
         # img shape
         shape = edge_img.shape
+
+        # set range of D, p
         D = int(np.sqrt(shape[0]*shape[0]+shape[1]*shape[1]))
-        thetaList = np.array([i for i in range(-90, 91)])
-        radList = np.deg2rad(thetaList)
+        thetaList = np.array([i for i in range(-90, 90+1, unit)]) # degree(theta)
+        # pList = np.array([p for p in range(-D, D+1, unit)]) # distance(p)
 
         # get edge index
         edgeIndex = np.where(edge_img==1)
+        radList = np.deg2rad(thetaList)
 
-        # make accumulate array :
-        # -D <= p <= D
-        # -90 <= theta <= 90 (deg)
-        accArray = np.zeros((2*D, 181))
+        accArr = linedetection.faster(edgeYIndex=edgeIndex[0].astype(np.float32),
+                                      edgeXIndex=edgeIndex[1].astype(np.float32),
+                                      radList=radList.astype(np.float32),
+                                      thetaList=thetaList.astype(np.float32),
+                                      D=D)
+        fig = plt.pyplot.figure()
+        plt.pyplot.imshow(img)
+        lineIdx = np.where(accArr >= thr)
 
-        lineCandidate = {}
-        for edgeY, edgeX in zip(edgeIndex[0], edgeIndex[1]) :
-
-            pCeil = np.ceil(edgeY*np.cos(radList)+edgeX*np.sin(radList)).astype(np.int64)
-            pCeil = pCeil + D
-            tmpThetaList = thetaList + 90
-            accArray[(np.array(pCeil, dtype=np.int64), np.array(tmpThetaList, dtype=np.int64))] += 1
-
-            # for p, t in zip(pCeil, tmpThetaList):
-            #     if (p-D,t-90) not in lineCandidate.keys() :
-            #         lineCandidate[(p - D, t - 90)] = [np.array([], dtype=np.int64), np.array([], dtype=np.int64)]
-            #     lineCandidate[(p-D,t-90)][0] = np.append(lineCandidate[(p-D,t-90)][0], edgeY)
-            #     lineCandidate[(p-D,t-90)][1] = np.append(lineCandidate[(p-D,t-90)][1], edgeX)
-
-        t2 = process_time()
-        lineIdx = np.where(accArray>=thr)
-        x = np.array([i for i in range(shape[1])])
-        fig = plt.figure()
-        plt.imshow(img, cmap='gray')
+        x = np.array([i for i in range(0, shape[1])])
         for p, t in zip(lineIdx[0], lineIdx[1]) :
-            y = (-np.sin(np.deg2rad(t-90))*x + p-D)//np.cos(np.deg2rad(t-90))
-            plt.plot(x, y, color='orange', alpha=0.1)
-        plt.xlim(0, shape[1])
-        plt.ylim(0, shape[0])
-        plt.gca().invert_yaxis()
+            pList = (-np.sin(np.deg2rad(t-90))*x + p-D)//np.cos(np.deg2rad(t-90))
+            plt.pyplot.plot(x, pList, color='orange', alpha=0.1)
+        plt.pyplot.xlim(0, shape[1])
+        plt.pyplot.ylim(0, shape[0])
+        plt.pyplot.gca().invert_yaxis()
         fig.canvas.draw()
         f_arr = np.array(fig.canvas.renderer._renderer)
 
-        if time!=None : print("Hough PLT to ARRAY PROCESSING TIME : ", t2 - t1)
         return f_arr
 
-        # for p, t in zip(lineIdx[0], lineIdx[1]) :
-        #     line = tuple(lineCandidate[(p-D, t-90)])
-        #     tempArray[line] = 255
-        # plt.imshow(tempArray, cmap='gray')
-        # plt.show()
+class featuredetection :
+
+    @staticmethod
+    @njit(int64[:,:](float32[:,:], float32[:,:], float32[:,:], float32, float32))
+    def featureInspec(gdy2, gdx2, gdyx, k, thr):
+
+        shape = gdy2.shape
+        featImg = np.zeros_like(gdy2.astype(int64))
+        for v in range(shape[0]):
+            for u in range(shape[1]):
+                A = np.array([[gdy2[v,u], gdyx[v,u]],
+                              [gdyx[v,u], gdx2[v,u]]])
+                C = np.linalg.det(A)-k*((A[0,0]+A[1,1])**2)
+                if C >= thr : featImg[v,u] = 1
+
+        return featImg
+
+    @staticmethod
+    def harrisCorner(img,
+                     ksize,
+                     sigmaX,
+                     sigmaY,
+                     thr,
+                     k=0.01):
+
+        # counting dy, dx (process time : 0.00000s, 512x512)
+        dy, dx = filter.sobel(img)
+
+        # calculate component of A matrix (processing time : 0.00000s, 512x512)
+        gdy2 = filter.gaussian(img=dy*dy,
+                               ksize=ksize,
+                               sigmaX=sigmaX,
+                               sigmaY=sigmaY).astype(np.float32) # dtype : float32
+        gdx2 = filter.gaussian(img=dx*dx,
+                               ksize=ksize,
+                               sigmaX=sigmaX,
+                               sigmaY=sigmaY).astype(np.float32) # dtype : float32
+        gdyx = filter.gaussian(img=dy*dx,
+                               ksize=ksize,
+                               sigmaX=sigmaX,
+                               sigmaY=sigmaY).astype(np.float32) # dtype : float32
+
+        # calculate A matrix for each points of the img(process time : 0.32s, 512x512)
+        feature = featuredetection.featureInspec(gdy2=gdy2,
+                                                 gdx2=gdx2,
+                                                 gdyx=gdyx,
+                                                 k=k,
+                                                 thr=thr)
+        idx = np.where(feature==1)
+        img[idx] = 255
+        return img
 
 if __name__ == "__main__" :
 
     # setting image directory
-    file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220526_233319312.jpg"
+
+    # file_dir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616_01.jpg"
 
     # hough
     # img = cv2.imread(file_dir, 0)
+    # img = cv2.resize(img, (512, 512))
+    # featuredetection.harrisCorner(img)
+
     # edge = edgeDetection.canny_edge(img=img,
     #                                 tLow=20,
-    #                                 resize_scale=0.3,
+    #                                 resize_scale=1,
     #                                 tHigh=70,
     #                                 sigmaX=5,
     #                                 sigmaY=5)
+    #
     # s = linedetection.hough(edge_img=edge,
-    #                         thr=30)
+    #                         thr=50,
+    #                         unit=1)
 
     # CANNY EDGE
     # img = cv2.imread(file_dir, 0)
@@ -810,24 +877,31 @@ if __name__ == "__main__" :
     #                                  sigmaX=5,
     #                                  sigmaY=5)
 
-    # video version
+    # # video version
     capture = cv2.VideoCapture(0)
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
     capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 256)
 
     while cv2.waitKey(1) < 0:
         ret, frame = capture.read()
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        edge_img = edgeDetection.canny_edge(img=frame,
-                                             tLow=50,
-                                             tHigh=100,
-                                             resize_scale=0,
-                                             sigmaX=5,
-                                             sigmaY=5)
-        line = linedetection.hough(edge_img=edge_img,
-                                   img=frame,
-                                   thr=32)
-        cv2.imshow("VideoFrame", line)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        feature = featuredetection.harrisCorner(img=gray,
+                                                ksize=3,
+                                                sigmaX=3,
+                                                sigmaY=3,
+                                                thr=3000)
+        # edge_img = edgeDetection.canny_edge(img=gray,
+        #                                      tLow=20,
+        #                                      tHigh=60,
+        #                                      resize_scale=1,
+        #                                      sigmaX=3,
+        #                                      sigmaY=3)
+        # line = linedetection.hough(edge_img=edge_img,
+        #                            img=frame,
+        #                            thr=45,
+        #                            unit=2)
+
+        cv2.imshow("VideoFrame", feature)
 
     capture.release()
     cv2.destroyAllWindows()
