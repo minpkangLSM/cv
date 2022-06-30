@@ -248,22 +248,23 @@ class multiscale :
                  thr,
                  ksi=1.4,
                  scale=0.7):
+
         # generate scale map
         shape = img.shape
         scaleMap = np.zeros((shape[0], shape[1], depth))
+        sigmaMap = {}
 
         # STEP 1 : find local feature in 2D for each channels
         for idx in range(depth):
             # set sigma
-            sigmaN = ksi**idx * sigma
+            sigmaN = (ksi**idx) * sigma
             sigmaI = sigmaN
             sigmaD = scale * sigmaN
-
             # make d(sigma)
             imgGaus = filters.gaussian(img,
                                        sigmaX=sigmaD,
                                        sigmaY=sigmaD)
-            dy, dx  = filters.sobel(imgGaus)
+            dy, dx = filters.sobel(imgGaus)
             Gdy2 = (sigmaD**2)*filters.gaussian(img=dy*dy,
                                                 sigmaX=sigmaI,
                                                 sigmaY=sigmaI).astype(np.float32)
@@ -278,10 +279,31 @@ class multiscale :
                                                   Gdydx=Gdydx,
                                                   k=0.04,
                                                   thr=thr)
+
             scaleMap[:,:,idx] = sigmaIFeatMap
+            sigmaMap[idx] = sigmaI
+
         # STEP 2 : select SCALE in 3D axis
+        xyIdx = np.where(scaleMap==1)
+        for y, x, s in zip(xyIdx[0], xyIdx[1], xyIdx[2]):
+            sigma = sigmaMap[s]
+            while True:
+                subSigma = 0.7*sigma
+                subLaplaceList = []
+                while subSigma <= 1.7*sigma :
+                    subGauImg = filters.gaussian(img=img,
+                                                 sigmaX=subSigma,
+                                                 sigmaY=subSigma)
+                    dy, dx = filters.sobel(subGauImg)
+                    # laplacian
+                    dyy = dy*dy
+                    dxx = dx*dx
+                    subLaplace = (subSigma**2)*abs(dyy[y,x]+dxx[y,x])
+                    if subLaplace >= thr : subLaplaceList.append(subLaplace)
+                    subSigma += 1.1
 
-
+                if len(subLaplaceList)==0 : break
+                else : sigmaNew = max(subLaplaceList)
 
 
 if __name__ == "__main__" :
@@ -291,7 +313,7 @@ if __name__ == "__main__" :
     img = cv2.imread(imgdir, 0)
     multiscale.scaleMap(img=img,
                         sigma=1.0,
-                        depth=10,
+                        depth=6,
                         thr=1000)
     # # video version
     # capture = cv2.VideoCapture(0)
