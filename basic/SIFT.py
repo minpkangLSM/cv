@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 import numpy as np
-from numba import jit
+from numba import jit, njit, int8
 from time import process_time
 from matplotlib import pyplot as plt
 
@@ -10,16 +10,17 @@ from filters import *
 
 class feature :
 
-    def __init__(self, img):
+    @staticmethod
+    def processor(img):
+        scaleSpace = feature.__scaleSpace(img=img)
+        DOG = feature.__DOG(scaleSpace=scaleSpace)
+        feature.featureDetection(DOG
+                                 )
 
-        scaleSpace = self.scaleSpace(img=img)
-        self.octaveDepth = len(scaleSpace.keys())
-        DOG = self.DOG(scaleSpace)
-
-    def scaleSpace(self,
-                   img,
-                   k=1.6,
-                   widthThr=16):
+    @staticmethod
+    def __scaleSpace(img,
+                     k=1.6,
+                     widthThr=16):
 
         # get image shape
         shape = img.shape
@@ -63,13 +64,15 @@ class feature :
             width = octaveLayer.shape[0]*octaveLayer.shape[1]
         return scaleSpace
 
-    def DOG(self,
-            scaleSpace):
+    @staticmethod
+    def __DOG(scaleSpace):
+
+        octaveDepth = len(scaleSpace.keys())
 
         # DOG space
         DOG = {}
         # build DOG SPACE
-        for idx in range(self.octaveDepth) :
+        for idx in range(octaveDepth) :
             DOGLayer1 = scaleSpace[idx][:,:,1]-scaleSpace[idx][:,:,0]
             DOGLayer2 = scaleSpace[idx][:,:,2]-scaleSpace[idx][:,:,1]
             DOGLayer3 = scaleSpace[idx][:,:,3]-scaleSpace[idx][:,:,2]
@@ -78,7 +81,21 @@ class feature :
             DOG[idx] = np.concatenate([DOGLayer1, DOGLayer2, DOGLayer3, DOGLayer4, DOGLayer5], axis=-1)
         return DOG
 
-    def featureDetection(self):
+    @staticmethod
+    @njit(int8[:,:,:])
+    def __featureDetection(dogOctave):
+
+
+        return
+
+    @staticmethod
+    def featureDetection(dog):
+
+        dogDepth = len(dog.keys())
+
+        for idx in range(dogDepth):
+            feature.__featureDetection(dog[idx].astype(np.int8))
+
         return
 
 if __name__ == "__main__":
@@ -87,5 +104,5 @@ if __name__ == "__main__":
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
 
     t1 = process_time()
-    feature(img=img)
+    feature.processor(img)
     t2 = process_time()
