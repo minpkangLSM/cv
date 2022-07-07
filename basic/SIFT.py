@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 import numpy as np
-from numba import jit, njit, int8
+from numba import jit, njit, uint8, int64
 from time import process_time
 from matplotlib import pyplot as plt
 
@@ -14,8 +14,7 @@ class feature :
     def processor(img):
         scaleSpace = feature.__scaleSpace(img=img)
         DOG = feature.__DOG(scaleSpace=scaleSpace)
-        feature.featureDetection(DOG
-                                 )
+        feature.featureDetection(dog=DOG)
 
     @staticmethod
     def __scaleSpace(img,
@@ -73,28 +72,40 @@ class feature :
         DOG = {}
         # build DOG SPACE
         for idx in range(octaveDepth) :
-            DOGLayer1 = scaleSpace[idx][:,:,1]-scaleSpace[idx][:,:,0]
-            DOGLayer2 = scaleSpace[idx][:,:,2]-scaleSpace[idx][:,:,1]
-            DOGLayer3 = scaleSpace[idx][:,:,3]-scaleSpace[idx][:,:,2]
-            DOGLayer4 = scaleSpace[idx][:,:,4]-scaleSpace[idx][:,:,3]
-            DOGLayer5 = scaleSpace[idx][:,:,5]-scaleSpace[idx][:,:,4]
+            DOGLayer1 = (scaleSpace[idx][:,:,1]-scaleSpace[idx][:,:,0])[:,:,np.newaxis]
+            DOGLayer2 = (scaleSpace[idx][:,:,2]-scaleSpace[idx][:,:,1])[:,:,np.newaxis]
+            DOGLayer3 = (scaleSpace[idx][:,:,3]-scaleSpace[idx][:,:,2])[:,:,np.newaxis]
+            DOGLayer4 = (scaleSpace[idx][:,:,4]-scaleSpace[idx][:,:,3])[:,:,np.newaxis]
+            DOGLayer5 = (scaleSpace[idx][:,:,5]-scaleSpace[idx][:,:,4])[:,:,np.newaxis]
+
             DOG[idx] = np.concatenate([DOGLayer1, DOGLayer2, DOGLayer3, DOGLayer4, DOGLayer5], axis=-1)
         return DOG
 
     @staticmethod
-    @njit(int8[:,:,:])
-    def __featureDetection(dogOctave):
+    @njit (int64[:](int64[:,:,:], int64[:], int64))
+    def _featureDetection(dogOctave, featureList, octaveDepth):
+
+        shape = dogOctave.shape
+        for height in range(1,shape[0]-1):
+            for width in range(1,shape[1]-1):
+                for depth in range(1,shape[2]-1):
+                    candidate = dogOctave[height, width, depth]
+                    # surround
+                    surround = dogOctave[height-1:height+2, width-1:width+2, depth-1:depth+2]
+                    if (candidate >= surround).all() or (candidate <= surround).all() :
+                        featureTmp = np.array([height, width, octaveDepth, depth], dtyp=np.int64)
+                        featureList = np.stack([featureList, featureTmp])
 
 
-        return
+        return featureList
 
     @staticmethod
     def featureDetection(dog):
 
         dogDepth = len(dog.keys())
-
-        for idx in range(dogDepth):
-            feature.__featureDetection(dog[idx].astype(np.int8))
+        featureList = np.array([0,0,0,0],dtype=np.int64)
+        for depth in range(dogDepth):
+            feature._featureDetection(dog[depth].astype(np.int64), featureList, depth)
 
         return
 
@@ -106,3 +117,4 @@ if __name__ == "__main__":
     t1 = process_time()
     feature.processor(img)
     t2 = process_time()
+    print(t2-t1)
