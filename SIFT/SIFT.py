@@ -6,7 +6,7 @@ from numba import jit, njit, uint8, int64
 from time import process_time
 from matplotlib import pyplot as plt
 
-from filters import *
+from basic.filters import *
 
 class feature :
 
@@ -82,7 +82,7 @@ class feature :
         return DOG
 
     @staticmethod
-    @njit (int64[:](int64[:,:,:], int64[:], int64))
+    @njit (int64(int64[:,:,:], int64[:], int64))
     def _featureDetection(dogOctave, featureList, octaveDepth):
 
         shape = dogOctave.shape
@@ -93,17 +93,16 @@ class feature :
                     # surround
                     surround = dogOctave[height-1:height+2, width-1:width+2, depth-1:depth+2]
                     if (candidate >= surround).all() or (candidate <= surround).all() :
-                        featureTmp = np.array([height, width, octaveDepth, depth], dtyp=np.int64)
-                        featureList = np.stack([featureList, featureTmp])
+                        f = np.array([[height], [width], [octaveDepth], [depth]])
+                        featureList = np.stack([featureList, f])
 
-
-        return featureList
+        return 1
 
     @staticmethod
     def featureDetection(dog):
 
         dogDepth = len(dog.keys())
-        featureList = np.array([0,0,0,0],dtype=np.int64)
+        featureList = np.array([[0],[0],[0],[0]],dtype=np.int64)
         for depth in range(dogDepth):
             feature._featureDetection(dog[depth].astype(np.int64), featureList, depth)
 
@@ -111,7 +110,7 @@ class feature :
 
 if __name__ == "__main__":
 
-    imgDir = "D:\\cv\\data\\prac\\cannytest.png"
+    imgDir = "D:\\cv\\data\\parts\\cannytest.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
 
     t1 = process_time()

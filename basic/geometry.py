@@ -117,7 +117,7 @@ def rotation(file_dir,
 
 if __name__ == "__main__" :
     test = arctan2(-2, 3)
-    # file_dir = "D:/cv/data/prac/KakaoTalk_20220518_215457616_01.jpg"
+    # file_dir = "D:/cv/data/parts/KakaoTalk_20220518_215457616_01.jpg"
     # rotation(file_dir=file_dir,
     #          theta=10,
     #          interp=False)

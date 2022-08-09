@@ -309,7 +309,7 @@ class multiscale :
 if __name__ == "__main__" :
 
     # setting image directory
-    imgdir = "D:\\cv\\data\\prac\\cannytest.png"
+    imgdir = "D:\\cv\\data\\parts\\cannytest.png"
     img = cv2.imread(imgdir, 0)
     multiscale.scaleMap(img=img,
                         sigma=1.0,
