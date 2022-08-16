@@ -62,29 +62,94 @@ class feature :
                                     fy=0.5,
                                     fx=0.5,
                                     interpolation=cv2.INTER_AREA)
-
        return scaleSpace
+
+    @staticmethod
+    def dog(scaleSpace):
+        """
+        order) feature class scale space -> dog
+        create difference of gaussian (DoG) space from scale space of feature.scalespace function.
+        :param scaleSpace:
+        :return: dog space, dtype = dictionary
+        """
+        # setting
+        dogSpace = {}
+        octaves = scaleSpace.keys()
+
+        for idx in octaves :
+            octave = scaleSpace[idx]
+            floor = octave.shape[2]
+            for sub_idx in range(0, floor-1):
+                l1 = octave[:,:,sub_idx]
+                l2 = octave[:,:,sub_idx+1]
+                diff = l1-l2
+                diff = diff[:,:,np.newaxis]
+                if sub_idx == 0 : dogOctave = diff
+                else : dogOctave = np.concatenate([dogOctave, diff], axis=-1)
+
+            dogSpace[idx] = dogOctave
+
+        return dogSpace
+
+    @staticmethod
+    def extremum(dogSpace):
+        """
+        order) scale space -> dog -> extremum
+        select the candidate points from scale space from feature.scaleSpace function.
+        :param scaleSpace:
+        :return:
+        """
+        dogIdx = dogSpace.keys()
+        mask = []
+        for key in dogIdx :
+            boolBox = np.ones_like(dogSpace[key])
+            for x in range(1, dogSpace[key].shape[0]-1):
+                for y in range(1, dogSpace[key].shape[1]-1):
+                    for z in range(1, dogSpace[key].shape[2]-1):
+                        if boolBox[x,y,z] == 0 : continue
+                        dVal = dogSpace[key][x,y,z]
+                        upper = dogSpace[key][x-1:x+2, y-1:y+2, z-1]
+                        mid = dogSpace[key][x-1:x+2, y-1:y+2, z]
+                        bottom = dogSpace[key][x-1:x+2, y-1:y+2, z+1]
+
+                        results = np.sum((dVal>=upper).flatten()) + np.sum((dVal>=mid).flatten()) + np.sum((dVal>=bottom).flatten())
+                        print(results)
+                        if results==0 or results==9 :
+                            print(dVal)
+                            print(upper)
+                            print(mid)
+                            print(bottom)
+                            print("extruemum")
+            break
+
+
 
 if __name__ == "__main__":
 
     imgDir = "D:\\cv\\data\\prac\\cannytest.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
-    t1 = process_time()
-    ss = feature.scaleSpace(img=img,
-                            s=2,
-                            octaveNum=4)
-    t2 = process_time()
+    img = cv2.resize(img, (350, 350))
 
-    for i in ss.keys() :
-        plt.subplot(231)
-        plt.imshow(ss[i][:, :, 0], cmap='gray')
-        plt.subplot(232)
-        plt.imshow(ss[i][:, :, 1], cmap='gray')
-        plt.subplot(233)
-        plt.imshow(ss[i][:, :, 2], cmap='gray')
-        plt.subplot(234)
-        plt.imshow(ss[i][:, :, 3], cmap='gray')
-        plt.subplot(235)
-        plt.imshow(ss[i][:, :, 4], cmap='gray')
-        plt.show()
+    t1 = process_time()
+
+    ss = feature.scaleSpace(img=img,
+                            s=3,
+                            octaveNum=5)
+    ds = feature.dog(ss)
+    ex = feature.extremum(ds)
+    t2 = process_time()
+    print("Process time : ", t2 - t1)
+
+    # for key in ds.keys() :
+    #     plt.subplot(231)
+    #     plt.imshow(ds[key][:, :, 0], cmap='gray')
+    #     plt.subplot(232)
+    #     plt.imshow(ds[key][:, :, 1], cmap='gray')
+    #     plt.subplot(233)
+    #     plt.imshow(ds[key][:, :, 2], cmap='gray')
+    #     plt.subplot(234)
+    #     plt.imshow(ds[key][:, :, 3], cmap='gray')
+    #     plt.subplot(235)
+    #     plt.imshow(ds[key][:, :, 4], cmap='gray')
+    #     plt.show()
         
