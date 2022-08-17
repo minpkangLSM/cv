@@ -4,9 +4,12 @@
 """
 import cv2
 import numpy as np
+import numba as nb
+from numba import jit, njit, uint8, int64
 from basic.filters import *
 from time import process_time
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 
 class feature :
 
@@ -92,6 +95,33 @@ class feature :
         return dogSpace
 
     @staticmethod
+    @jit (uint8[:,:,:](uint8[:,:,:]))
+    def extremumSub(octave):
+        """
+        SUB function for locate extremum in DOG space
+        :param octave:
+        :return:
+        """
+
+        boolBox = np.ones_like(octave)
+        extrBox = np.zeros_like(octave).astype(uint8)
+
+        for x in range(1, boolBox.shape[0]-1):
+            for y in range(1, boolBox.shape[1]-1):
+                for z in range(1, boolBox.shape[2]-1):
+
+                    if boolBox[x,y,z]==0 : continue
+
+                    dVal = octave[x, y, z]
+                    sample = octave[x-1:x+2, y-1:y+2, z-1:z+2]
+                    results = np.sum((dVal>sample).flatten())-1
+                    if results==0 or results==26 :
+                        boolBox[x-1:x+2, y-1:y+2, z-1:z+2] = 0
+                        extrBox[x,y,z] = 1
+
+        return extrBox
+
+    @staticmethod
     def extremum(dogSpace):
         """
         order) scale space -> dog -> extremum
@@ -100,27 +130,16 @@ class feature :
         :return:
         """
         dogIdx = dogSpace.keys()
-        mask = []
-        for key in dogIdx :
-            boolBox = np.ones_like(dogSpace[key])
-            for x in range(1, dogSpace[key].shape[0]-1):
-                for y in range(1, dogSpace[key].shape[1]-1):
-                    for z in range(1, dogSpace[key].shape[2]-1):
-                        if boolBox[x,y,z] == 0 : continue
-                        dVal = dogSpace[key][x,y,z]
-                        upper = dogSpace[key][x-1:x+2, y-1:y+2, z-1]
-                        mid = dogSpace[key][x-1:x+2, y-1:y+2, z]
-                        bottom = dogSpace[key][x-1:x+2, y-1:y+2, z+1]
+        extremum = {}
 
-                        results = np.sum((dVal>=upper).flatten()) + np.sum((dVal>=mid).flatten()) + np.sum((dVal>=bottom).flatten())
-                        print(results)
-                        if results==0 or results==9 :
-                            print(dVal)
-                            print(upper)
-                            print(mid)
-                            print(bottom)
-                            print("extruemum")
-            break
+        for key in dogIdx :
+
+            octave = dogSpace[key]
+            extreBox = feature.extremumSub(octave)
+            extIdx = np.where(extreBox==1)
+            extremum[key] = extIdx
+
+        return extremum
 
 
 
@@ -130,15 +149,35 @@ if __name__ == "__main__":
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
     img = cv2.resize(img, (350, 350))
 
-    t1 = process_time()
-
+    # x = 175
+    # y = 175
+    # box = img[x-1:x+2, y-1:y+2, :]
+    # plt.imshow(box)
+    # plt.show()
     ss = feature.scaleSpace(img=img,
                             s=3,
                             octaveNum=5)
     ds = feature.dog(ss)
+    t1 = process_time()
     ex = feature.extremum(ds)
     t2 = process_time()
     print("Process time : ", t2 - t1)
+    fig, ax = plt.subplots()
+    ax.imshow(img, cmap='gray')
+    plt.scatter(ex[0][1], ex[0][0], edgecolors='r', s=3)
+    for x, y in zip(ex[1][1], ex[1][0]):
+        ax.add_patch(Rectangle((2*x, 2*y),
+                     np.sqrt(2)*2, np.sqrt(2)*2,
+                     linewidth=1,
+                     edgecolor='r',
+                     facecolor='none'))
+    for x, y in zip(ex[2][1], ex[2][0]):
+        ax.add_patch(Rectangle((4*x, 4*y),
+                     np.sqrt(2)*4, np.sqrt(2)*4,
+                     linewidth=1,
+                     edgecolor='r',
+                     facecolor='none'))
+    plt.show()
 
     # for key in ds.keys() :
     #     plt.subplot(231)
