@@ -3,11 +3,14 @@
 - SCALE SPACE, Kang min Park, 2022.08.09.
 """
 import cv2
+import math
 import numpy as np
 import numba as nb
 from numba import jit, njit, uint8, int64
 from basic.filters import *
+from basic.geometry import *
 from time import process_time
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -31,11 +34,12 @@ class feature :
        k = 2**(1/s) # gFactor = k, sigma factor
        octaveLayer = img
        scaleSpace = {}
+       sigmas = {}
 
        # create scale space
        for oIdx in range(octaveNum):
            initSigma = sigma
-
+           sigmaList = []
            # create each octave
            for iIdx in range(s+3):
 
@@ -48,6 +52,8 @@ class feature :
                if iIdx==0 and oIdx==0 : sigmaDiff = np.sqrt(initSigma**2 - 0.5**2)
                else : sigmaDiff = np.sqrt(initSigma**2 - prevSigma**2)
 
+               sigmaList.append(initSigma)
+
                # make a layer
                octaveLayer = gaussian(octaveLayer,
                                       sigmaX=sigmaDiff,
@@ -59,13 +65,14 @@ class feature :
                prevSigma = initSigma
 
            scaleSpace[oIdx] = octave
+           sigmas[oIdx] = sigmaList
            prevSigma = sigma
            octaveLayer = cv2.resize(src=octave[:,:,s],
                                     dsize=None,
                                     fy=0.5,
                                     fx=0.5,
                                     interpolation=cv2.INTER_AREA)
-       return scaleSpace
+       return scaleSpace, sigmas
 
     @staticmethod
     def dog(scaleSpace):
@@ -96,7 +103,7 @@ class feature :
 
     @staticmethod
     @jit (uint8[:,:,:](uint8[:,:,:]))
-    def extremumSub(octave):
+    def __extremumSub(octave):
         """
         SUB function for locate extremum in DOG space
         :param octave:
@@ -106,27 +113,28 @@ class feature :
         boolBox = np.ones_like(octave)
         extrBox = np.zeros_like(octave).astype(uint8)
 
-        for x in range(1, boolBox.shape[0]-1):
-            for y in range(1, boolBox.shape[1]-1):
+        for x in range(1, boolBox.shape[1]-1):
+            for y in range(1, boolBox.shape[0]-1):
                 for z in range(1, boolBox.shape[2]-1):
 
-                    if boolBox[x,y,z]==0 : continue
+                    if boolBox[y, x, z]==0 : continue
 
-                    dVal = octave[x, y, z]
-                    sample = octave[x-1:x+2, y-1:y+2, z-1:z+2]
+                    dVal = octave[y, x, z]
+                    sample = octave[y-1:y+2, x-1:x+2, z-1:z+2]
                     results = np.sum((dVal>sample).flatten())-1
                     if results==0 or results==26 :
-                        boolBox[x-1:x+2, y-1:y+2, z-1:z+2] = 0
-                        extrBox[x,y,z] = 1
+                        boolBox[y-1:y+2, x-1:x+2, z-1:z+2] = 0
+                        extrBox[y, x, z] = 1
 
         return extrBox
 
     @staticmethod
-    def extremum(dogSpace):
+    def extremum(dogSpace, sigmas):
         """
         order) scale space -> dog -> extremum
         select the candidate points from scale space from feature.scaleSpace function.
         :param scaleSpace:
+        :param sigmas:
         :return:
         """
         dogIdx = dogSpace.keys()
@@ -135,7 +143,7 @@ class feature :
         for key in dogIdx :
 
             octave = dogSpace[key]
-            extreBox = feature.extremumSub(octave)
+            extreBox = feature.__extremumSub(octave)
             extIdx = np.where(extreBox==1)
             extremum[key] = extIdx
 
@@ -147,48 +155,55 @@ if __name__ == "__main__":
 
     imgDir = "D:\\cv\\data\\prac\\cannytest.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
-    img = cv2.resize(img, (350, 350))
-
-    # x = 175
-    # y = 175
-    # box = img[x-1:x+2, y-1:y+2, :]
-    # plt.imshow(box)
-    # plt.show()
-    ss = feature.scaleSpace(img=img,
-                            s=3,
-                            octaveNum=5)
-    ds = feature.dog(ss)
+    img = cv2.resize(img, (200, 200))
+    deg = 0
+    img_rot = rotation(img=img,
+                       theta=deg)
     t1 = process_time()
-    ex = feature.extremum(ds)
+
+    ss, sigmas = feature.scaleSpace(img=img_rot,
+                                    s=3,
+                                    octaveNum=5)
+    ds = feature.dog(ss)
+    ex = feature.extremum(ds, sigmas)
     t2 = process_time()
     print("Process time : ", t2 - t1)
+
     fig, ax = plt.subplots()
     ax.imshow(img, cmap='gray')
-    plt.scatter(ex[0][1], ex[0][0], edgecolors='r', s=3)
-    for x, y in zip(ex[1][1], ex[1][0]):
-        ax.add_patch(Rectangle((2*x, 2*y),
-                     np.sqrt(2)*2, np.sqrt(2)*2,
-                     linewidth=1,
-                     edgecolor='r',
-                     facecolor='none'))
-    for x, y in zip(ex[2][1], ex[2][0]):
-        ax.add_patch(Rectangle((4*x, 4*y),
-                     np.sqrt(2)*4, np.sqrt(2)*4,
-                     linewidth=1,
-                     edgecolor='r',
-                     facecolor='none'))
-    plt.show()
 
-    # for key in ds.keys() :
-    #     plt.subplot(231)
-    #     plt.imshow(ds[key][:, :, 0], cmap='gray')
-    #     plt.subplot(232)
-    #     plt.imshow(ds[key][:, :, 1], cmap='gray')
-    #     plt.subplot(233)
-    #     plt.imshow(ds[key][:, :, 2], cmap='gray')
-    #     plt.subplot(234)
-    #     plt.imshow(ds[key][:, :, 3], cmap='gray')
-    #     plt.subplot(235)
-    #     plt.imshow(ds[key][:, :, 4], cmap='gray')
-    #     plt.show()
-        
+    for idx in ex.keys():
+        if idx!=0 : continue
+        x_list = []
+        y_list = []
+
+        # deg rotation -> 그냥 로테이션 원상복귀만 시키는 파트 (scale과는 아무 관련 없음)
+        # X, Y, Z 순서 주의할 것 -> 영상은 기본적으로 (Height, Width, Channel) = (Y, X, Z) 순서임
+        shift = tran(-img.shape[1]/2, -img.shape[0]/2) # Homogeneous matrix는 x, y 순서로 받아야 한다.
+        shift_rev = tran(img.shape[1]/2, img.shape[0]/2)
+        rot_matrix = rot(deg)
+        h_matrix = np.linalg.multi_dot([shift_rev, rot_matrix, shift])
+
+        coord_homo = np.stack([ex[idx][1],
+                               ex[idx][0],
+                               np.ones_like(ex[idx][0])], axis=0).astype(np.int64)
+        source_coord = np.dot(lin.inv(h_matrix), coord_homo) # 결과로 받은 source_coord는 [x, y] 순서임
+
+        # 사격형 그리기 -> scale 관련
+        for x, y, z in zip(source_coord[0,:], source_coord[1,:], ex[idx][2]):
+            # scale(시그마 말고)에 따른, 사각형의 중심위치
+            x = x*(2**idx) + (2**idx-1)/2
+            y = y*(2**idx) + (2**idx-1)/2
+            x_list.append(x)
+            y_list.append(y)
+
+            # 범위에 따른 사각형
+            rec = Rectangle((x-math.floor(6*sigmas[idx][z]/2), y-math.floor(6*sigmas[idx][z]/2)),
+                            math.floor(6 * sigmas[idx][z]), math.floor(6 * sigmas[idx][z]),
+                            linewidth=1,
+                            edgecolor='r',
+                            facecolor='none')
+            ax.add_patch(rec)
+            ax.scatter(x_list, y_list)
+
+    plt.show()

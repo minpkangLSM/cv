@@ -52,7 +52,7 @@ def bi_inter(coord, shape):
 
     return upper_left, upper_right, bottom_left, bottom_right
 
-def rotation(file_dir,
+def rotation(img,
              theta,
              x_resize=0.5,
              y_resize=0.5,
@@ -66,9 +66,7 @@ def rotation(file_dir,
     :param interp: binary interpolation
     :return:
     """
-    img = cv2.imread(file_dir, cv2.IMREAD_COLOR)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, dsize=(0,0), fx=x_resize, fy=y_resize)
+    img = img
 
     shift = tran(0, 0)
     shift_rev = tran(0, 0)
@@ -102,22 +100,26 @@ def rotation(file_dir,
                 ul, ur, bl, br = bi_inter(i, img.shape)
                 alpha = i[0]-ul[0]
                 beta = i[1]-ul[1]
-                interp_1 = (1-alpha) * img[ul[1]][ul[0]][:] + alpha * img[ur[1]][ur[0]][:]
-                interp_2 = (1-alpha) * img[bl[1]][bl[0]][:] + alpha * img[br[1]][br[0]][:]
-                interp_3 = (1-beta) * interp_1 + beta * interp_2
-                frame[j[1]][j[0]][:] = interp_3
+                if len(frame.shape)==2:
+                    interp_1 = (1-alpha) * img[ul[1]][ul[0]] + alpha * img[ur[1]][ur[0]]
+                    interp_2 = (1-alpha) * img[bl[1]][bl[0]] + alpha * img[br[1]][br[0]]
+                    interp_3 = (1 - beta) * interp_1 + beta * interp_2
+                    frame[j[1]][j[0]] = interp_3
+                else :
+                    interp_1 = (1 - alpha) * img[ul[1]][ul[0]][:] + alpha * img[ur[1]][ur[0]][:]
+                    interp_2 = (1 - alpha) * img[bl[1]][bl[0]][:] + alpha * img[br[1]][br[0]][:]
+                    interp_3 = (1-beta) * interp_1 + beta * interp_2
+                    frame[j[1]][j[0]][:] = interp_3
             else :
-                frame[j[1]][j[0]][:] = img[i[1].astype(int)][i[0].astype(int)][:]
+                if len(frame.shape)==2: frame[j[1]][j[0]] = img[i[1].astype(int)][i[0].astype(int)]
+                else : frame[j[1]][j[0]][:] = img[i[1].astype(int)][i[0].astype(int)][:]
 
-    plt.subplot(121)
-    plt.imshow(img)
-    plt.subplot(122)
-    plt.imshow(frame)
-    plt.show()
+    return frame
 
 if __name__ == "__main__" :
     test = arctan2(-2, 3)
-    # file_dir = "D:/cv/data/parts/KakaoTalk_20220518_215457616_01.jpg"
-    # rotation(file_dir=file_dir,
-    #          theta=10,
-    #          interp=False)
+    imgDir = "D:\\cv\\data\\prac\\KakaoTalk_20220518_215457616.jpg"
+    img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(img, (350, 350))
+    img = rotation(img=img,
+                   theta=10)
