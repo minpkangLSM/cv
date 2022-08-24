@@ -153,7 +153,7 @@ class feature :
 
 if __name__ == "__main__":
 
-    imgDir = "D:\\cv\\data\\prac\\cannytest.png"
+    imgDir = "D:\\cv\\data\\prac\\blacktriangle.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)
     img = cv2.resize(img, (200, 200))
     deg = 0
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     ax.imshow(img, cmap='gray')
 
     for idx in ex.keys():
-        if idx!=0 : continue
+        # if idx!=0 : continue
         x_list = []
         y_list = []
 
@@ -191,19 +191,20 @@ if __name__ == "__main__":
 
         # 사격형 그리기 -> scale 관련
         for x, y, z in zip(source_coord[0,:], source_coord[1,:], ex[idx][2]):
-            # scale(시그마 말고)에 따른, 사각형의 중심위치
-            x = x*(2**idx) + (2**idx-1)/2
-            y = y*(2**idx) + (2**idx-1)/2
+
+            # scale(시그마 말고)에 따른, 사각형의 중심 위치
+            x = x*(2**idx) + (2**idx-1)/2 # center X of Scale
+            y = y*(2**idx) + (2**idx-1)/2 # center Y of Scale
             x_list.append(x)
             y_list.append(y)
 
             # 범위에 따른 사각형
             rec = Rectangle((x-math.floor(6*sigmas[idx][z]/2), y-math.floor(6*sigmas[idx][z]/2)),
-                            math.floor(6 * sigmas[idx][z]), math.floor(6 * sigmas[idx][z]),
+                            math.floor(6*sigmas[idx][z]), math.floor(6*sigmas[idx][z]),
                             linewidth=1,
                             edgecolor='r',
                             facecolor='none')
             ax.add_patch(rec)
-            ax.scatter(x_list, y_list)
+        ax.scatter(x_list, y_list)
 
     plt.show()
