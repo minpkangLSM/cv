@@ -13,6 +13,29 @@ def sobel(img):
 
     return imgDy, imgDx
 
+def sobelHeightAxis(img):
+    """
+    해당 필터는 높이 방향으로만 처리되는 필터
+    :param img:
+    :return:
+    """
+    fHeight = np.array([[-1, -2, -1],
+                        [ 0,  0,  0],
+                        [ 1,  2,  1]])
+    imgDHeight = cv2.filter2D(img, ddepth=cv2.CV_16S, kernel=fHeight)
+    return imgDHeight
+
+def sobelWidthAxis(img):
+    """
+    해당 필터는 너비 방향으로만 처리되는 필터
+    :param img:
+    :return:
+    """
+    fWidth = np.array([[-1, 0, 1],
+                       [-2, 0, 2],
+                       [-1, 0, 1]])
+    imgWidth = cv2.filter2D(img, ddepth=cv2.CV_16S, kernel=fWidth)
+    return imgWidth
 
 def gaussian(img,
              sigmaX,

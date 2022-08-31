@@ -168,7 +168,7 @@ class featuredetection :
         # counting dy, dx (process time : 0.00000s, 512x512)
         dy, dx = filters.sobel(img)
 
-        # calculate component of A matrix (processing time : 0.00000s, 512x512)
+        # calculate component of A matrix (processing time : 0.00000s, 512x512) -> dx^2 : 를 왜 dx x dx로 하지? 그냥 x로 미분 더 해야하는거 아닌가?
         gdy2 = filters.gaussian(img=dy*dy,
                                ksize=ksize,
                                sigmaX=sigmaX,
@@ -183,7 +183,7 @@ class featuredetection :
                                sigmaY=sigmaY).astype(np.float32) # dtype : float32
 
         # calculate A matrix for each points of the img(process time : 0.32s, 512x512)
-        feature = featuredetection.harrisCNMS(gdy2=gdy2,
+        feature = featuredetection. CNMS(gdy2=gdy2,
                                               gdx2=gdx2,
                                               gdyx=gdyx,
                                               k=k,
