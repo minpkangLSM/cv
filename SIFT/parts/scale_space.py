@@ -112,16 +112,14 @@ class feature :
         """
         dogIdx = dogSpace.keys()
         extremum = {}
-        results = {}
+        interpolated = {}
 
         # STEP 1) extract sample points(of extremum)
         for idx in dogIdx :
-
             octave = dogSpace[idx]
             extreBox = feature.__extremumSub(octave)
             extIdx = np.where(extreBox==1)
             extremum[idx] = extIdx
-
 
         for idx in dogIdx :
             """1. derivate Y"""
@@ -176,12 +174,17 @@ class feature :
             for no, val in enumerate(XhatVal) :
                 if any(val >= 0.5) :
                     val = val.flatten()
-                    extremumFloat[0][no] = extremumFloat[0][no] + val[0]
-                    extremumFloat[1][no] = extremumFloat[1][no] + val[1]
-                    extremumFloat[2][no] = extremumFloat[2][no] + val[2]
-            results[idx] = extremumFloat
+                    extremumFloat[0][no] = extremumFloat[0][no] - val[0]
+                    extremumFloat[1][no] = extremumFloat[1][no] - val[1]
+                    extremumFloat[2][no] = extremumFloat[2][no] - val[2]
+            interpolated[idx] = extremumFloat
 
-        return results
+        for XhatIdx in interpolated.keys() :
+            XhatOct = interpolated[XhatIdx]
+            for x, y, z in zip(XhatOct[0], XhatOct[1], XhatOct[2]):
+                print(x, y, z)
+
+        return None
 
     @staticmethod
     @jit (uint8[:,:,:](uint8[:,:,:]))
