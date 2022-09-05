@@ -233,11 +233,6 @@ class feature :
 
         return extrBox
 
-    # @staticmethod
-    # @jit (uint8[:,:,:](uint8[:,:,:]))
-    # def __interpolation(octave):
-    #     pass
-
 if __name__ == "__main__":
 
     imgDir = "D:\\cv\\data\\prac\\blacktriangle.png"
