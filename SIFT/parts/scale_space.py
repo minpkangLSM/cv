@@ -4,6 +4,7 @@
 """
 import cv2
 import math
+import copy
 import numpy as np
 import numba as nb
 from numba import jit, njit, uint8, int64
@@ -102,7 +103,9 @@ class feature :
         return dogSpace
 
     @staticmethod
-    def extremum(dogSpace, sigmas):
+    def extremum(dogSpace,
+                 offsetThr,
+                 contrastThr):
         """
         order) scale space -> dog -> extremum
         select the candidate points from scale space from feature.scaleSpace function.
@@ -112,22 +115,33 @@ class feature :
         """
         dogIdx = dogSpace.keys()
         extremum = {}
-        interpolated = {}
+        contrast = {}
 
         # STEP 1) extract sample points(of extremum)
+        """
+        dog : scale space에 대하여 difference를 수행한 scale space
+        extremum : dog scale space 상에서, 극점을 갖는 위치를 갖는 변수
+        """
         for idx in dogIdx :
             octave = dogSpace[idx]
             extreBox = feature.__extremumSub(octave)
             extIdx = np.where(extreBox==1)
             extremum[idx] = extIdx
 
+        # STEP 2) extract feature points
+        """
+        1) calculate Gradient / Heissan for extremum points
+        2) interploate the location of extremum which have value under 0.5
+        3) discard the location of extremum which have D(hat x) under contrast threshold
+        """
+
         for idx in dogIdx :
+            # dog scale space 상 octave 순서대로 진행
             """1. derivate Y"""
             octaveY = dogSpace[idx]
             dy = sobelHeightAxis(octaveY) # shape (Y, X, Z)
             dy2 = sobelHeightAxis(dy)  # shape (Y, X, Z)
             dyx = sobelWidthAxis(dy) # shape (Y, X, Z)
-
             """2. derivate X"""
             octaveX = np.transpose(octaveY, (1, 0, 2))
             dx = sobelHeightAxis(octaveX) # shape (X, Y, Z)
@@ -138,7 +152,6 @@ class feature :
             dx = np.transpose(dx, (1, 0, 2))
             dx2 = np.transpose(dx2, (1, 0, 2)) # shape (Y, X, Z)
             dxz = np.transpose(dxz, (2, 1, 0)) # shape (Y, X, Z)
-
             """3. derivate Z"""
             octaveZ = np.transpose(octaveY, (2, 0, 1))
             dz = sobelHeightAxis(octaveZ) # shape (Z, Y, X)
@@ -166,23 +179,30 @@ class feature :
             hessianTmp = np.concatenate([dDdx2, dDdyx, dDdxz, dDdyx, dDdy2, dDdzy, dDdxz, dDdzy, dDdz2], axis=0)[:,:,np.newaxis]
             hessian = hessianTmp.reshape((-1, 3, 3))
 
-            # calculate
+            # interpolation
             XhatVal = np.matmul(hessian/255, gradient/255) # normalize value in range 0 ~ 1
-            extremumFloat = (extremum[idx][0].astype(float),
-                             extremum[idx][1].astype(float),
-                             extremum[idx][2].astype(float))
-            for no, val in enumerate(XhatVal) :
-                if any(val >= 0.5) :
+            interpolatedTmp = copy.deepcopy(extremum[idx])
+            for no, val in enumerate(XhatVal):
+                if any(abs(val)) >= offsetThr :
                     val = val.flatten()
-                    extremumFloat[0][no] = extremumFloat[0][no] - val[0]
-                    extremumFloat[1][no] = extremumFloat[1][no] - val[1]
-                    extremumFloat[2][no] = extremumFloat[2][no] - val[2]
-            interpolated[idx] = extremumFloat
+                    interpolatedTmp[0][no] = interpolatedTmp[0][no] - val[0]
+                    interpolatedTmp[1][no] = interpolatedTmp[1][no] - val[1]
+                    interpolatedTmp[2][no] = interpolatedTmp[2][no] - val[2]
 
-        for XhatIdx in interpolated.keys() :
-            XhatOct = interpolated[XhatIdx]
-            for x, y, z in zip(XhatOct[0], XhatOct[1], XhatOct[2]):
-                print(x, y, z)
+            # contrast value
+            iTmp = np.concatenate((interpolatedTmp[0][:, np.newaxis],
+                                   interpolatedTmp[1][:, np.newaxis],
+                                   interpolatedTmp[2][:, np.newaxis]), axis=-1) # (N, 3)
+            iTmp = iTmp[:, :, np.newaxis] # (N, 3, 1)
+            gradientRshp = gradient.transpose((0,2,1))
+            contrastVal = dogSpace[idx][extremum[idx]]/255 + 0.5 * np.matmul(gradientRshp/255, iTmp).flatten()
+            contrastValIdx = np.where((contrastVal >= contrastThr) | (contrastVal <= -contrastThr))
+            # discard value under contrastThr
+            contrast[idx] = (extremum[idx][0][contrastValIdx],
+                            extremum[idx][1][contrastValIdx],
+                            extremum[idx][2][contrastValIdx])
+
+            # 4.1 Eliminating Edge Response - Harris corner
 
         return None
 
@@ -236,10 +256,12 @@ if __name__ == "__main__":
     # DoG space
     DoG = feature.dog(ss)
     # Get extremum
-    ex = feature.extremum(DoG, sigmas)
+    ex = feature.extremum(dogSpace=DoG,
+                          offsetThr=0.5,
+                          contrastThr=0.03)
     t2 = process_time()
-    print(ex)
     print("Process time of Chapter 3 : ", t2 - t1)
+    print(ex)
     # fig, ax = plt.subplots()
     # ax.imshow(img, cmap='gray')
     #
