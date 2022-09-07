@@ -204,6 +204,7 @@ class feature :
 
             # 4.1 Eliminating Edge Response - Harris corner
 
+        print(contrast)
         return None
 
     @staticmethod
