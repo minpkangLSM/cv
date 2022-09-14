@@ -38,6 +38,7 @@ class orientation :
             locYs = features[idx][0]
             locXs = features[idx][1]
             locZs = features[idx][2]
+
             for locY, locX, locZ in zip(locYs, locXs, locZs):
                 # orientation histogram
                 oriHisto = {}
@@ -61,12 +62,14 @@ class orientation :
                                          sigma=maxShape/6)
                 weightedMagSur = magSur*gWeight
                 oriList = list(set(oriSur.flatten()))
+
                 for ori in oriList :
                     count = np.sum(weightedMagSur[oriSur==ori])
                     oriHisto[ori] = count
                 maxKV = max(zip(oriHisto.values(), oriHisto.keys()))
                 maxKey = maxKV[1]
                 maxVal = maxKV[0]
+
                 for val, key in zip(oriHisto.values(), oriHisto.keys()) :
                     if val >= maxVal*0.8 and key != maxKey :
                         newY = np.append(newY, locY)
@@ -160,11 +163,9 @@ if __name__ == "__main__" :
                                            sigmaX=1.5,
                                            r=10)
 
-    t2 = process_time()
-    print("Process time of Chapter 4 : ", t2 - t1)
-
     """STEP 3 : making descriptor"""
     oriFeatures = orientation.assign(dogSpace=DoG, sigmas=sigmas, features=features)
 
     t2 = process_time()
     print("Process time of Chapter 5 : ", t2 - t1)
+    print(oriFeatures[3])
