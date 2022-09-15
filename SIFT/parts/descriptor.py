@@ -1,7 +1,7 @@
 import cv2
 import math
 import numpy as np
-from numba import jit, int64, float32
+from numba import jit, int64, float32, float64
 from basic.filters import *
 from time import process_time
 from featureExtractor import *
@@ -25,7 +25,8 @@ class orientation :
             newZ = np.array([])
             newOri = np.array([])
 
-            # step 1 : 키포인트의 scale에 해당하는 이미지 L에 대한 기울기와 기울기 크기 계산을 위해 해당 옥타브 전체 계산
+            # step 1 : 키포인트의 scale에 해당하는 이미지 L에 대한 기울기와
+            # 기울기 크기 계산을 위해 해당 옥타브 전체 계산
             subDog = dogSpace[idx]
             dy = sobelHeightAxis(subDog,
                                  ddepth=cv2.CV_64F)
@@ -33,7 +34,19 @@ class orientation :
                                 ddepth=cv2.CV_64F)
             magnitude = np.sqrt(dy*dy+dx*dx)
             theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
-            theta = orientation.__quantize(theta)
+            theta = orientation.__quantize36(theta)
+
+            # 아래 for 구문 numba로 처리하기 (processing~)
+            # locYs = features[idx][0].astype(np.int16)
+            # locXs = features[idx][1].astype(np.int16)
+            # locZs = features[idx][2].astype(np.int16)
+            # sigma = np.array(sigmas[idx])
+            # orientation.__orientationHist(locYs=locYs,
+            #                               locXs=locXs,
+            #                               locZs=locZs,
+            #                               sigmaList=sigma,
+            #                               theta=theta,
+            #                               mag=magnitude)
 
             locYs = features[idx][0]
             locXs = features[idx][1]
@@ -50,7 +63,7 @@ class orientation :
 
                 # set the range of histogram
                 rangeYHead = int(max(0, locY-sigma/2))
-                rangeYRear = int(min(LMag.shape[1], locY + sigma / 2))
+                rangeYRear = int(min(LMag.shape[0], locY + sigma / 2))
                 rangeXHead = int(max(0, locX-sigma/2))
                 rangeXRear = int(min(LMag.shape[1], locX + sigma / 2))
                 magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
@@ -85,25 +98,61 @@ class orientation :
         return oriFeatures
 
     @staticmethod
-    @jit((float32, float32, float32, float32)(int64[:], int64[:], int64[:], float32[:], float32[:], float32[:,:], float32[:,:]))
-    def __orientationHist(locY,
-                          locX,
-                          locZ,
+    @jit (int16(int16[:], int16[:], int16[:], float64[:], float64[:,:,:], float64[:,:,:]))
+    def __orientationHist(locYs,
+                          locXs,
+                          locZs,
                           sigmaList,
-                          thetaList,
-                          LMag,
-                          LOri):
+                          theta,
+                          mag):
+        # set feature arrays
+        # newY = np.array([]).astype(np.float32)
+        # newX = np.array([]).astype(np.float32)
+        # newZ = np.array([]).astype(np.float32)
+        # newOri = np.array([]).astype(np.float32)
 
-        newY = np.zeros_like(locY)
-        newX = np.zeros_like(locY)
-        newZ = np.zeros_like(locY)
-        newO = np.zeros_like(locY)
+        for locY, locX, locZ in zip(locYs, locXs, locZs) :
 
-        pass
+            # get L(y, x) for each key point
+            sigma = sigmaList[locZ]
+            LMag = mag[:, :, locZ]
+            LOri = theta[:, :, locZ]
+
+            # set the range of histogram
+            rangeYHead = int(max(0, locY - sigma / 2))
+            rangeYRear = int(min(LMag.shape[1], locY + sigma / 2))
+            rangeXHead = int(max(0, locX-sigma/2))
+            rangeXRear = int(min(LMag.shape[1], locX + sigma / 2))
+            magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+            oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+            magShape = magSur.shape
+            maxShape = np.array(max(magShape[0], magShape[1])).astype(np.float64)
+
+            # get gaussian filter (=gWeight)
+            m, n = [(ss - 1.) / 2. for ss in magShape]
+            y = np.array([val for val in range(-int(m),int(m)+1)]).reshape(-1, 1)
+            x = np.array([val for val in range(-int(n),int(n)+1)]).reshape(1, -1)
+            gWeight = np.exp(-(x * x + y * y) / (2. * maxShape/6. * maxShape/6.))
+            # gWeight[gWeight < np.finfo(gWeight.dtype).eps * gWeight.max()] = 0
+            sumh = gWeight.sum()
+            if sumh != 0:
+                gWeight /= sumh
+
+            # make histogram
+            weightedMagSur = magSur*gWeight
+            oriList = list(set(oriSur.flatten()))
+
+            for orie in oriList :
+                weightedMagSur[oriSur==orie]
+                # count = np.sum(weightedMagSur[oriSur==ori])
+
+        # newfeatures = np.zeros_like(np.array([[1,2],[3,4]])).astype(float64)
+
+        return 1
 
 
     @staticmethod
-    def __quantize(theta):
+    def __quantize36(theta):
         """
         sub function of def. assign
         quantize theta(Deg) into 36 bins(0~35)
@@ -150,6 +199,100 @@ class orientation :
 
         return quantizedDir
 
+    @staticmethod
+    def featureVector(oriFeatures,
+                      dogSpace):
+
+        featureVect = []
+        octaveIdx = oriFeatures.keys()
+
+        for idx in octaveIdx :
+
+            # 기울기 크기 계산을 위해 해당 옥타브 전체 계산
+            subDog = dogSpace[idx]
+            dy = sobelHeightAxis(subDog,
+                                 ddepth=cv2.CV_64F)
+            dx = sobelWidthAxis(subDog,
+                                ddepth=cv2.CV_64F)
+            magnitude = np.sqrt(dy*dy+dx*dx)
+            theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
+            theta = orientation.__quantize8(theta)
+
+            #
+            locYs = oriFeatures[idx][0]
+            locXs = oriFeatures[idx][1]
+            locZs = oriFeatures[idx][2]
+            locOs = oriFeatures[idx][3]
+
+            for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs) :
+
+                # feature fingerprint
+                ff = np.zeros(128+4)
+
+                # get L for each key point
+                LMag = magnitude[:, :, int(locZ)]
+                LOri = theta[:, :, int(locZ)]
+
+                # set the range of histogram
+                rangeYHead = int(max(0, locY - 8))
+                rangeYRear = int(min(LMag.shape[0], locY + 8))
+                rangeXHead = int(max(0, locX - 8))
+                rangeXRear = int(min(LMag.shape[1], locX + 8))
+                magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+                oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+
+                magShape = magSur.shape
+                maxShape = max(magShape[0], magShape[1])
+                gWeight = gaussianFilter(shape=magShape,
+                                         sigma=maxShape / 6)
+                weightedMagSur = magSur * gWeight
+                cnt = 0
+                for idxY in range(0, magShape[0], 4):
+                    for idxX in range(0, magShape[1], 4):
+                        idxYHead = idxY
+                        idxYRear = min(idxY + 4, magShape[0])
+                        idxXHead = idxX
+                        idxXRear = min(idxX + 4, magShape[1])
+
+                        magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
+                        oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
+
+                        baseIdx = cnt*8 + int(idxX/4)*8
+
+                        for idx, ori in enumerate(range(8)) :
+                            count = np.sum(magPart[oriPart==ori])
+                            ff[baseIdx+idx] = count
+                    cnt += 4
+
+                ff[-1] = locO
+                ff[-2] = locZ
+                ff[-3] = locX
+                ff[-4] = locY
+
+            featureVect.append(ff)
+
+        return featureVect
+
+    @staticmethod
+    def __quantize8(theta):
+        """
+        sub function of def. assign
+        quantize theta(Deg) into 8 bins(0~7)
+        :param theta: unit -> deg
+        :return:
+        """
+        quantizedDir = np.zeros_like(theta)
+        quantizedDir[np.where((theta >= 0) & (theta < 45))] = 0
+        quantizedDir[np.where((theta >= 45) & (theta < 90))] = 1
+        quantizedDir[np.where((theta >= 90) & (theta < 135))] = 2
+        quantizedDir[np.where((theta >= 135) & (theta < 180))] = 3
+        quantizedDir[np.where((theta < 0) & (theta >= -45))] = 4
+        quantizedDir[np.where((theta < -45) & (theta >= -90))] = 5
+        quantizedDir[np.where((theta < -90) & (theta >= -135))] = 6
+        quantizedDir[np.where((theta < -135) & (theta >= -180))] = 7
+
+        return quantizedDir
+
 if __name__ == "__main__" :
 
     t1 = process_time()
@@ -183,7 +326,10 @@ if __name__ == "__main__" :
 
     """STEP 3 : making descriptor"""
     oriFeatures = orientation.assign(dogSpace=DoG, sigmas=sigmas, features=features)
+    featureVect = orientation.featureVector(oriFeatures=oriFeatures,
+                                            dogSpace=DoG)
 
     t2 = process_time()
     print("Process time of Chapter 5 : ", t2 - t1)
-    print(oriFeatures[3])
+    print(featureVect)
+    # print(oriFeatures[3])
