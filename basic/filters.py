@@ -24,6 +24,12 @@ def sobelFloat(img):
     imgDy = cv2.filter2D(img, ddepth=cv2.CV_64F, kernel=f_y)
     return imgDy, imgDx
 
+def sobel_axis(img):
+    fAxis = np.array([[-1, 0, 1],
+                      [-2, 0, 2],
+                      [-1, 0, 1]])
+    imgDAxis = cv2.filter2D(img, ddepth=cv2.CV_16S, kernel=fAxis)
+    return imgDAxis
 
 def sobelHeightAxis(img,
                     ddepth=cv2.CV_16S):

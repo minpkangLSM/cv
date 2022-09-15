@@ -1,7 +1,7 @@
 import cv2
 import math
 import numpy as np
-from numba import jit
+from numba import jit, int64, float32
 from basic.filters import *
 from time import process_time
 from featureExtractor import *
@@ -45,15 +45,15 @@ class orientation :
 
                 # get L for each key point
                 sigma = sigmas[idx][locZ] * 1.5
-                LMagn = magnitude[:,:,locZ]
+                LMag = magnitude[:, :, locZ]
                 LOri = theta[:,:,locZ]
 
                 # set the range of histogram
                 rangeYHead = int(max(0, locY-sigma/2))
-                rangeYRear = int(min(LMagn.shape[1], locY+sigma/2))
+                rangeYRear = int(min(LMag.shape[1], locY + sigma / 2))
                 rangeXHead = int(max(0, locX-sigma/2))
-                rangeXRear = int(min(LMagn.shape[1], locX+sigma/2))
-                magSur = LMagn[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+                rangeXRear = int(min(LMag.shape[1], locX + sigma / 2))
+                magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
                 oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
 
                 magShape = magSur.shape
@@ -85,6 +85,24 @@ class orientation :
         return oriFeatures
 
     @staticmethod
+    @jit((float32, float32, float32, float32)(int64[:], int64[:], int64[:], float32[:], float32[:], float32[:,:], float32[:,:]))
+    def __orientationHist(locY,
+                          locX,
+                          locZ,
+                          sigmaList,
+                          thetaList,
+                          LMag,
+                          LOri):
+
+        newY = np.zeros_like(locY)
+        newX = np.zeros_like(locY)
+        newZ = np.zeros_like(locY)
+        newO = np.zeros_like(locY)
+
+        pass
+
+
+    @staticmethod
     def __quantize(theta):
         """
         sub function of def. assign
@@ -96,7 +114,7 @@ class orientation :
         quantizedDir[np.where((theta >= 0) & (theta < 10))] = 0
         quantizedDir[np.where((theta >= 10) & (theta < 20))] = 1
         quantizedDir[np.where((theta >= 20) & (theta < 30))] = 2
-        quantizedDir[np.where((theta >= 33) & (theta < 40))] = 3
+        quantizedDir[np.where((theta >= 30) & (theta < 40))] = 3
         quantizedDir[np.where((theta >= 40) & (theta < 50))] = 4
         quantizedDir[np.where((theta >= 50) & (theta < 60))] = 5
         quantizedDir[np.where((theta >= 60) & (theta < 70))] = 6
