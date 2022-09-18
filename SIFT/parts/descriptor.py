@@ -16,14 +16,8 @@ class orientation :
         # setting to calculate gradient, orientation of key points
         octaveIdx = dogSpace.keys()
         oriFeatures = {}
-
         # calculate orientation histogram
         for idx in octaveIdx :
-
-            newY = np.array([])
-            newX = np.array([])
-            newZ = np.array([])
-            newOri = np.array([])
 
             # step 1 : 키포인트의 scale에 해당하는 이미지 L에 대한 기울기와
             # 기울기 크기 계산을 위해 해당 옥타브 전체 계산
@@ -36,82 +30,37 @@ class orientation :
             theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
             theta = orientation.__quantize36(theta)
 
-            # 아래 for 구문 numba로 처리하기 (processing~)
-            # locYs = features[idx][0].astype(np.int16)
-            # locXs = features[idx][1].astype(np.int16)
-            # locZs = features[idx][2].astype(np.int16)
-            # sigma = np.array(sigmas[idx])
-            # orientation.__orientationHist(locYs=locYs,
-            #                               locXs=locXs,
-            #                               locZs=locZs,
-            #                               sigmaList=sigma,
-            #                               theta=theta,
-            #                               mag=magnitude)
-
-            locYs = features[idx][0]
-            locXs = features[idx][1]
-            locZs = features[idx][2]
-
-            for locY, locX, locZ in zip(locYs, locXs, locZs):
-                # orientation histogram
-                oriHisto = {}
-
-                # get L for each key point
-                sigma = sigmas[idx][locZ] * 1.5
-                LMag = magnitude[:, :, locZ]
-                LOri = theta[:,:,locZ]
-
-                # set the range of histogram
-                rangeYHead = int(max(0, locY-sigma/2))
-                rangeYRear = int(min(LMag.shape[0], locY + sigma / 2))
-                rangeXHead = int(max(0, locX-sigma/2))
-                rangeXRear = int(min(LMag.shape[1], locX + sigma / 2))
-                magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-                oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-
-                magShape = magSur.shape
-                maxShape = max(magShape[0], magShape[1])
-                gWeight = gaussianFilter(shape=magShape,
-                                         sigma=maxShape/6)
-                weightedMagSur = magSur*gWeight
-                oriList = list(set(oriSur.flatten()))
-
-                for ori in oriList :
-                    count = np.sum(weightedMagSur[oriSur==ori])
-                    oriHisto[ori] = count
-                maxKV = max(zip(oriHisto.values(), oriHisto.keys()))
-                maxKey = maxKV[1]
-                maxVal = maxKV[0]
-
-                for val, key in zip(oriHisto.values(), oriHisto.keys()) :
-                    if val >= maxVal*0.8 and key != maxKey :
-                        newY = np.append(newY, locY)
-                        newX = np.append(newX, locX)
-                        newZ = np.append(newZ, locZ)
-                        newOri = np.append(newOri, key)
-
-            oriFeatures[idx] = (newY,
-                                newX,
-                                newZ,
-                                newOri)
+            # step 2 : assign orientation to features
+            locYs = features[idx][0].astype(np.int16)
+            locXs = features[idx][1].astype(np.int16)
+            locZs = features[idx][2].astype(np.int16)
+            sigma = np.array(sigmas[idx])
+            newFeatures = orientation.__orientationHist(locYs=locYs,
+                                                        locXs=locXs,
+                                                        locZs=locZs,
+                                                        sigmaList=sigma,
+                                                        theta=theta,
+                                                        mag=magnitude)
+            oriFeatures[idx] = (newFeatures[:,0],
+                                newFeatures[:,1],
+                                newFeatures[:,2],
+                                newFeatures[:,3])
 
         return oriFeatures
 
     @staticmethod
-    @jit (int16(int16[:], int16[:], int16[:], float64[:], float64[:,:,:], float64[:,:,:]))
+    @jit (int16[:,:](int16[:], int16[:], int16[:], float64[:], float64[:,:,:], float64[:,:,:]))
     def __orientationHist(locYs,
                           locXs,
                           locZs,
                           sigmaList,
                           theta,
                           mag):
-        # set feature arrays
-        # newY = np.array([]).astype(np.float32)
-        # newX = np.array([]).astype(np.float32)
-        # newZ = np.array([]).astype(np.float32)
-        # newOri = np.array([]).astype(np.float32)
-
+        count = 0
         for locY, locX, locZ in zip(locYs, locXs, locZs) :
+
+            # set feature arrays
+            histogram = np.zeros(36).astype(np.float64)  # index = quantized orientation
 
             # get L(y, x) for each key point
             sigma = sigmaList[locZ]
@@ -130,26 +79,36 @@ class orientation :
 
             # get gaussian filter (=gWeight)
             m, n = [(ss - 1.) / 2. for ss in magShape]
-            y = np.array([val for val in range(-int(m),int(m)+1)]).reshape(-1, 1)
-            x = np.array([val for val in range(-int(n),int(n)+1)]).reshape(1, -1)
+            y = np.arange(-m, m+1).reshape(-1, 1)
+            x = np.arange(-n, n+1).reshape(1, -1)
             gWeight = np.exp(-(x * x + y * y) / (2. * maxShape/6. * maxShape/6.))
             # gWeight[gWeight < np.finfo(gWeight.dtype).eps * gWeight.max()] = 0
             sumh = gWeight.sum()
-            if sumh != 0:
-                gWeight /= sumh
+            if sumh != 0 : gWeight /= sumh
 
             # make histogram
             weightedMagSur = magSur*gWeight
-            oriList = list(set(oriSur.flatten()))
+            for j in range(oriSur.shape[0]):
+                for i in range(oriSur.shape[1]):
+                    q = oriSur[j,i]
+                    v = weightedMagSur[j,i]
+                    histogram[int(q)] += v
 
-            for orie in oriList :
-                weightedMagSur[oriSur==orie]
-                # count = np.sum(weightedMagSur[oriSur==ori])
+            # histogram
+            fIdx = np.where(histogram >= histogram.max()*0.8)
+            loc = np.repeat(np.array([locY, locX, locZ]), len(fIdx[0]))
+            if len(fIdx[0])>=2 : arr = loc.reshape(-1, len(fIdx[0]))
+            else : arr = loc.reshape(-1,1)
+            fIdxTmp = fIdx[0].reshape(1,-1)
 
-        # newfeatures = np.zeros_like(np.array([[1,2],[3,4]])).astype(float64)
+            # assign orientation to feature array
+            if count == 0 :
+                arr2 = np.concatenate((arr, fIdxTmp), axis=0).transpose(1, 0)
+            else :
+                arr2 = np.concatenate((arr2, np.concatenate((arr, fIdxTmp), axis=0).transpose(1, 0)), axis=0)
+            count+=1
 
-        return 1
-
+        return arr2.astype(np.int16)
 
     @staticmethod
     def __quantize36(theta):
@@ -219,59 +178,139 @@ class orientation :
             theta = orientation.__quantize8(theta)
 
             #
-            locYs = oriFeatures[idx][0]
-            locXs = oriFeatures[idx][1]
-            locZs = oriFeatures[idx][2]
-            locOs = oriFeatures[idx][3]
+            locYs = oriFeatures[idx][0].astype(np.int16)
+            locXs = oriFeatures[idx][1].astype(np.int16)
+            locZs = oriFeatures[idx][2].astype(np.int16)
+            locOs = oriFeatures[idx][3].astype(np.int16)
 
-            for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs) :
-
-                # feature fingerprint
-                ff = np.zeros(128+4)
-
-                # get L for each key point
-                LMag = magnitude[:, :, int(locZ)]
-                LOri = theta[:, :, int(locZ)]
-
-                # set the range of histogram
-                rangeYHead = int(max(0, locY - 8))
-                rangeYRear = int(min(LMag.shape[0], locY + 8))
-                rangeXHead = int(max(0, locX - 8))
-                rangeXRear = int(min(LMag.shape[1], locX + 8))
-                magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-                oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-
-                magShape = magSur.shape
-                maxShape = max(magShape[0], magShape[1])
-                gWeight = gaussianFilter(shape=magShape,
-                                         sigma=maxShape / 6)
-                weightedMagSur = magSur * gWeight
-                cnt = 0
-                for idxY in range(0, magShape[0], 4):
-                    for idxX in range(0, magShape[1], 4):
-                        idxYHead = idxY
-                        idxYRear = min(idxY + 4, magShape[0])
-                        idxXHead = idxX
-                        idxXRear = min(idxX + 4, magShape[1])
-
-                        magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
-                        oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
-
-                        baseIdx = cnt*8 + int(idxX/4)*8
-
-                        for idx, ori in enumerate(range(8)) :
-                            count = np.sum(magPart[oriPart==ori])
-                            ff[baseIdx+idx] = count
-                    cnt += 4
-
-                ff[-1] = locO
-                ff[-2] = locZ
-                ff[-3] = locX
-                ff[-4] = locY
-
-            featureVect.append(ff)
-
+            newFeatures = orientation.__orientationHist2(locYs=locYs,
+                                                         locXs=locXs,
+                                                         locZs=locZs,
+                                                         locOs=locOs,
+                                                         ori=theta,
+                                                         mag=magnitude)
+            featureVect.append(newFeatures)
+        #     locYs = oriFeatures[idx][0]
+        #     locXs = oriFeatures[idx][1]
+        #     locZs = oriFeatures[idx][2]
+        #     locOs = oriFeatures[idx][3]
+        #
+        #     for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs) :
+        #
+        #         # feature fingerprint
+        #         ff = np.zeros(128+4)
+        #
+        #         # get L for each key point
+        #         LMag = magnitude[:, :, int(locZ)]
+        #         LOri = theta[:, :, int(locZ)]
+        #
+        #         # set the range of histogram
+        #         rangeYHead = int(max(0, locY - 8))
+        #         rangeYRear = int(min(LMag.shape[0], locY + 8))
+        #         rangeXHead = int(max(0, locX - 8))
+        #         rangeXRear = int(min(LMag.shape[1], locX + 8))
+        #         magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+        #         oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+        #
+        #         magShape = magSur.shape
+        #         maxShape = max(magShape[0], magShape[1])
+        #         gWeight = gaussianFilter(shape=magShape,
+        #                                  sigma=maxShape / 6)
+        #         weightedMagSur = magSur * gWeight
+        #         cnt = 0
+        #         for idxY in range(0, magShape[0], 4):
+        #             for idxX in range(0, magShape[1], 4):
+        #                 idxYHead = idxY
+        #                 idxYRear = min(idxY + 4, magShape[0])
+        #                 idxXHead = idxX
+        #                 idxXRear = min(idxX + 4, magShape[1])
+        #
+        #                 magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
+        #                 oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
+        #
+        #                 baseIdx = cnt*8 + int(idxX/4)*8
+        #
+        #                 for idx, ori in enumerate(range(8)) :
+        #                     count = np.sum(magPart[oriPart==ori])
+        #                     ff[baseIdx+idx] = count
+        #             cnt += 4
+        #
+        #         ff[-1] = locO
+        #         ff[-2] = locZ
+        #         ff[-3] = locX
+        #         ff[-4] = locY
+        #
+        #     featureVect.append(ff)
+        #
         return featureVect
+
+    @staticmethod
+    @jit (int16[:](int16[:], int16[:], int16[:], int16[:], float64[:,:,:], float64[:,:,:]))
+    def __orientationHist2(locYs,
+                           locXs,
+                           locZs,
+                           locOs,
+                           ori,
+                           mag):
+
+        ff = np.zeros(132).astype(np.int16)
+
+        for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs):
+
+            # get L for each key point
+            LMag = mag[:, :, int(locZ)]
+            LOri = ori[:, :, int(locZ)]
+
+            # set the range of histogram
+            rangeYHead = int(max(0, locY - 8))
+            rangeYRear = int(min(LMag.shape[0], locY + 8))
+            rangeXHead = int(max(0, locX - 8))
+            rangeXRear = int(min(LMag.shape[1], locX + 8))
+            magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+            oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
+
+            magShape = magSur.shape
+            maxShape = max(magShape[0], magShape[1])
+
+            # get gaussian filter (=gWeight)
+            m, n = [(ss - 1.) / 2. for ss in magShape]
+            y = np.arange(-m, m + 1).reshape(-1, 1)
+            x = np.arange(-n, n + 1).reshape(1, -1)
+            gWeight = np.exp(-(x * x + y * y) / (2. * maxShape / 6. * maxShape / 6.))
+            # gWeight[gWeight < np.finfo(gWeight.dtype).eps * gWeight.max()] = 0
+            sumh = gWeight.sum()
+            if sumh != 0: gWeight /= sumh
+            weightedMagSur = magSur * gWeight
+
+            cnt = 0
+            for idxY in range(0, magShape[0], 4):
+                 for idxX in range(0, magShape[1], 4):
+                     idxYHead = idxY
+                     idxYRear = min(idxY + 4, magShape[0])
+                     idxXHead = idxX
+                     idxXRear = min(idxX + 4, magShape[1])
+
+                     magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
+                     oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
+
+                     baseIdx = cnt*8 + int(idxX/4)*8
+
+                     for j in range(magPart.shape[0]):
+                         for i in range(magPart.shape[1]):
+                             q = oriPart[j, i]
+                             v = magPart[j, i]
+                             ff[baseIdx+int(q)] += v
+                         # count = np.sum(magPart[oriPart==idx])
+                         # ff[baseIdx+idx] = count
+                 cnt += 4
+
+            ff[-1] = locO
+            ff[-2] = locZ
+            ff[-3] = locX
+            ff[-4] = locY
+
+        return ff
+
 
     @staticmethod
     def __quantize8(theta):
@@ -331,5 +370,3 @@ if __name__ == "__main__" :
 
     t2 = process_time()
     print("Process time of Chapter 5 : ", t2 - t1)
-    print(featureVect)
-    # print(oriFeatures[3])

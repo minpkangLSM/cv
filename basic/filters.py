@@ -60,6 +60,7 @@ def sobelWidthAxis(img,
 def gaussian(img,
              sigmaX,
              sigmaY):
+
     xKsize = round(6*sigmaX)
     if xKsize%2 == 0 : xKsize += 1
     yKsize = round(6*sigmaY)
@@ -83,6 +84,5 @@ def gaussianFilter(shape, sigma):
     h = np.exp(-(x * x + y * y) / (2. * sigma * sigma))
     h[h < np.finfo(h.dtype).eps * h.max()] = 0
     sumh = h.sum()
-    if sumh != 0:
-        h /= sumh
+    if sumh != 0 : h /= sumh
     return h
