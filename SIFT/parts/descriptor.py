@@ -167,7 +167,7 @@ class orientation :
 
         for idx in octaveIdx :
 
-            # 기울기 크기 계산을 위해 해당 옥타브 전체 계산
+            # 기울기(orientation) / 크기(magnitude) 계산을 위해 해당 1개의 옥타브 전체 계산
             subDog = dogSpace[idx]
             dy = sobelHeightAxis(subDog,
                                  ddepth=cv2.CV_64F)
@@ -177,7 +177,13 @@ class orientation :
             theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
             theta = orientation.__quantize8(theta)
 
-            #
+            # 1개의 옥타브 내 존재하는 배열 순서
+            """
+            arr[0] : 피쳐의 Y 좌표
+            arr[1] : 피쳐의 X 좌표
+            arr[2] : 피쳐의 Z 좌표
+            arr[3] : 피쳐의 양자화 된 방향(Orientation) 
+            """
             locYs = oriFeatures[idx][0].astype(np.int16)
             locXs = oriFeatures[idx][1].astype(np.int16)
             locZs = oriFeatures[idx][2].astype(np.int16)
@@ -245,15 +251,15 @@ class orientation :
         return featureVect
 
     @staticmethod
-    @jit (int16[:](int16[:], int16[:], int16[:], int16[:], float64[:,:,:], float64[:,:,:]))
+    @jit (float32[:](int16[:], int16[:], int16[:], int16[:], float64[:,:,:], float64[:,:,:]))
     def __orientationHist2(locYs,
                            locXs,
                            locZs,
                            locOs,
                            ori,
                            mag):
-
-        ff = np.zeros(132).astype(np.int16)
+        # 128개의 방향 피쳐(finger print of feature)를 저장할 배열생성 (128개 + Y,X,Z,O)
+        ff = np.zeros(132).astype(np.float32)
 
         for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs):
 
@@ -290,18 +296,17 @@ class orientation :
                      idxXHead = idxX
                      idxXRear = min(idxX + 4, magShape[1])
 
-                     magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
-                     oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
+                     magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear].flatten()
+                     oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear].flatten()
 
                      baseIdx = cnt*8 + int(idxX/4)*8
 
-                     for j in range(magPart.shape[0]):
-                         for i in range(magPart.shape[1]):
-                             q = oriPart[j, i]
-                             v = magPart[j, i]
-                             ff[baseIdx+int(q)] += v
-                         # count = np.sum(magPart[oriPart==idx])
-                         # ff[baseIdx+idx] = count
+                     for qOri in range(0,8):
+                         target = np.where(oriPart==qOri)
+                         if len(target)==0 : continue
+                         arrIdx = baseIdx + qOri
+                         ff[arrIdx] = magPart[target].sum()
+
                  cnt += 4
 
             ff[-1] = locO
@@ -310,7 +315,6 @@ class orientation :
             ff[-4] = locY
 
         return ff
-
 
     @staticmethod
     def __quantize8(theta):
@@ -369,4 +373,4 @@ if __name__ == "__main__" :
                                             dogSpace=DoG)
 
     t2 = process_time()
-    print("Process time of Chapter 5 : ", t2 - t1)
+    print("Process time from Chapter 3 to Chapter 5 : ", t2 - t1)
