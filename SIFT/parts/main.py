@@ -1,4 +1,7 @@
 import cv2
+from featureExtractor import *
+from descriptor import *
+from matching import *
 
 
 t1 = process_time()
