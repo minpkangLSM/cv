@@ -99,6 +99,10 @@ class KdTree :
 
         return vectors, maxDim
 
+class matching :
+
+    pass
+
 if __name__ == "__main__":
 
     t1 = process_time()
