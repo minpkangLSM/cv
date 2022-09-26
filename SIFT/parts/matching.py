@@ -1,39 +1,51 @@
 import cv2
+from time import process_time
 import numpy as np
 import numba as nb
 from numba import jit, int64, float32, float64
 
-class node:
-
+class Node:
     def __init__(self,
                  value,
-                 dimension,
-                 leftGroup=None,
-                 rightGroup=None):
+                 dimension=None,
+                 leftNode=None,
+                 rightNode=None):
 
-        val = value
-        dim = dimension
-        left = leftGroup
-        right = rightGroup
+        self.val = value
+        self.dim = dimension
+        self.left = leftNode
+        self.right = rightNode
 
-class kdTree :
+class KdTree :
 
     @staticmethod
-    def main(vectors):
+    def makeTree(vectors):
 
-        # 분산이 가장 큰 차원 찾기
-        maxDim = kdTree.findMaxDim(vectors=vectors)
+        if vectors.size == 0 :
+            node = Node(value=None)
+            return node
 
-        # 해당 분산을 갖는 축을 기준으로 vectors 정렬
-        dimVec = vectors[:, maxDim]
-        print(dimVec.shape)
-        vectors, dimVec = kdTree.mergeSort(vectors=vectors, dimVec=dimVec)
-        print(dimVec)
-        # 가장 분산이 큰 차원의 축을 기준으로 정렬된 vectors에 대하여 해당 축에서 median에 위치하는 벡터 찾기
-        medianVector = vectors[vectors.shape[0]//2, :]
-        print(medianVector)
-        left = vectors[:vectors.shape[0]//2] # 해당 벡터에 대해서도 재귀
-        right = vectors[vectors.shape[0]//2:] # 해당 벡터에 대해서도 재귀
+        elif vectors.shape[0]==1 :
+            node = Node(value=vectors[0,:])
+            return node
+
+        else :
+            # 분산이 가장 큰 차원 찾기
+            maxDim = KdTree.findMaxDim(vectors=vectors)
+
+            # 해당 분산을 갖는 축을 기준으로 vectors 정렬
+            vectors, maxDim = KdTree.mergeSort(vectors=vectors,
+                                               maxDim=maxDim)
+            # median에 위치하는 벡터 찾기 / median 기준 left, right 분할
+            medianVector = vectors[vectors.shape[0]//2, :]
+            left = vectors[:vectors.shape[0]//2]
+            right = vectors[vectors.shape[0]//2+1:]
+
+            node = Node(value=medianVector,
+                        dimension=maxDim)
+            node.left = KdTree.makeTree(left)
+            node.right = KdTree.makeTree(right)
+            return node
 
     @staticmethod
     def findMaxDim(vectors):
@@ -49,51 +61,47 @@ class kdTree :
 
     @staticmethod
     def mergeSort(vectors,
-                  dimVec):
+                  maxDim):
         """
         :param dimVec: def findMaxDim을 통해 추출된 가장 큰 분산을 갖는 벡터의 차원 값들
         :return:
         """
-        if dimVec.shape[0]==1 : return vectors, dimVec
-        mid = dimVec.shape[0] // 2
-        leftvectors, leftdimVec = kdTree.mergeSort(vectors=vectors[:mid, :], dimVec=dimVec[:mid])
-        rightvectors, rightdimVec = kdTree.mergeSort(vectors=vectors[mid:, :], dimVec=dimVec[mid:])
+
+        if vectors.shape[0]==1 : return vectors, maxDim
+        mid = vectors.shape[0] // 2
+        leftVectors, maxDim = KdTree.mergeSort(vectors=np.copy(vectors[:mid, :]),
+                                               maxDim=maxDim)
+        rightVectors, maxDim = KdTree.mergeSort(vectors=np.copy(vectors[mid:, :]),
+                                                maxDim=maxDim)
         i = 0
         j = 0
         k = 0
-        while i < leftdimVec.shape[0] and j < rightdimVec.shape[0] :
-            if leftdimVec[i] < rightdimVec[j] :
-                vectors[k, :] = leftvectors[i, :]
-                dimVec[k] = leftdimVec[i]
+        while i < leftVectors.shape[0] and j < rightVectors.shape[0]:
+            if leftVectors[i, maxDim] < rightVectors[j, maxDim]:
+                vectors[k, :] = leftVectors[i, :]
                 k += 1
                 i += 1
             else :
-                vectors[k, :] = rightvectors[j, :]
-                dimVec[k] = rightdimVec[j]
+                vectors[k, :] = rightVectors[j, :]
                 k += 1
                 j += 1
 
-        if i == leftdimVec.shape[0] :
-            while j < rightdimVec.shape[0]:
-                vectors[k, :] = rightvectors[j, :]
-                dimVec[k] = rightdimVec[j]
+        if i == leftVectors.shape[0] :
+            while j < rightVectors.shape[0]:
+                vectors[k, :] = rightVectors[j, :]
                 k += 1
                 j += 1
-        elif j == rightdimVec.shape[0] :
-            while i < leftdimVec.shape[0]:
-                vectors[k, :] = leftvectors[i, :]
-                dimVec[k] = leftdimVec[i]
+        elif j == rightVectors.shape[0] :
+            while i < leftVectors.shape[0]:
+                vectors[k, :] = leftVectors[i, :]
                 k += 1
                 i += 1
 
-        return vectors, dimVec
-
-
-
-
+        return vectors, maxDim
 
 if __name__ == "__main__":
 
+    t1 = process_time()
     arr = np.array([[3,1],
                     [2,3],
                     [6,2],
@@ -104,5 +112,8 @@ if __name__ == "__main__":
                     [5,8],
                     [6,10],
                     [6,11]])
+    root = KdTree.makeTree(vectors=arr)
+    t2 = process_time()
+    print(t2-t1)
 
-    tree = kdTree.main(vectors=arr)
+

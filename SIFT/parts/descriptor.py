@@ -162,7 +162,6 @@ class orientation :
     def featureVector(oriFeatures,
                       dogSpace):
 
-        featureVect = []
         octaveIdx = oriFeatures.keys()
 
         for idx in octaveIdx :
@@ -195,63 +194,13 @@ class orientation :
                                                          locOs=locOs,
                                                          ori=theta,
                                                          mag=magnitude)
-            featureVect.append(newFeatures)
-        #     locYs = oriFeatures[idx][0]
-        #     locXs = oriFeatures[idx][1]
-        #     locZs = oriFeatures[idx][2]
-        #     locOs = oriFeatures[idx][3]
-        #
-        #     for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs) :
-        #
-        #         # feature fingerprint
-        #         ff = np.zeros(128+4)
-        #
-        #         # get L for each key point
-        #         LMag = magnitude[:, :, int(locZ)]
-        #         LOri = theta[:, :, int(locZ)]
-        #
-        #         # set the range of histogram
-        #         rangeYHead = int(max(0, locY - 8))
-        #         rangeYRear = int(min(LMag.shape[0], locY + 8))
-        #         rangeXHead = int(max(0, locX - 8))
-        #         rangeXRear = int(min(LMag.shape[1], locX + 8))
-        #         magSur = LMag[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-        #         oriSur = LOri[rangeYHead:rangeYRear, rangeXHead:rangeXRear]
-        #
-        #         magShape = magSur.shape
-        #         maxShape = max(magShape[0], magShape[1])
-        #         gWeight = gaussianFilter(shape=magShape,
-        #                                  sigma=maxShape / 6)
-        #         weightedMagSur = magSur * gWeight
-        #         cnt = 0
-        #         for idxY in range(0, magShape[0], 4):
-        #             for idxX in range(0, magShape[1], 4):
-        #                 idxYHead = idxY
-        #                 idxYRear = min(idxY + 4, magShape[0])
-        #                 idxXHead = idxX
-        #                 idxXRear = min(idxX + 4, magShape[1])
-        #
-        #                 magPart = weightedMagSur[idxYHead:idxYRear, idxXHead:idxXRear]
-        #                 oriPart = oriSur[idxYHead:idxYRear, idxXHead:idxXRear]
-        #
-        #                 baseIdx = cnt*8 + int(idxX/4)*8
-        #
-        #                 for idx, ori in enumerate(range(8)) :
-        #                     count = np.sum(magPart[oriPart==ori])
-        #                     ff[baseIdx+idx] = count
-        #             cnt += 4
-        #
-        #         ff[-1] = locO
-        #         ff[-2] = locZ
-        #         ff[-3] = locX
-        #         ff[-4] = locY
-        #
-        #     featureVect.append(ff)
-        #
-        return featureVect
+            if idx==0 : features = newFeatures
+            else : features = np.concatenate((features, newFeatures), axis=0)
+
+        return features
 
     @staticmethod
-    @jit (float32[:](int16[:], int16[:], int16[:], int16[:], float64[:,:,:], float64[:,:,:]))
+    @jit (float32[:,:](int16[:], int16[:], int16[:], int16[:], float64[:,:,:], float64[:,:,:]))
     def __orientationHist2(locYs,
                            locXs,
                            locZs,
@@ -259,9 +208,12 @@ class orientation :
                            ori,
                            mag):
         # 128개의 방향 피쳐(finger print of feature)를 저장할 배열생성 (128개 + Y,X,Z,O)
-        ff = np.zeros(132).astype(np.float32)
+        idx = 0
+        fVec = np.zeros((len(locYs), 132)).astype(np.float32)
 
         for locY, locX, locZ, locO in zip(locYs, locXs, locZs, locOs):
+
+            ff = np.zeros(132).astype(np.float32)
 
             # get L for each key point
             LMag = mag[:, :, int(locZ)]
@@ -313,8 +265,10 @@ class orientation :
             ff[-2] = locZ
             ff[-3] = locX
             ff[-4] = locY
+            fVec[idx, :] = ff
+            idx+=1
 
-        return ff
+        return fVec
 
     @staticmethod
     def __quantize8(theta):
@@ -373,4 +327,5 @@ if __name__ == "__main__" :
                                             dogSpace=DoG)
 
     t2 = process_time()
+    print(featureVect.shape)
     print("Process time from Chapter 3 to Chapter 5 : ", t2 - t1)

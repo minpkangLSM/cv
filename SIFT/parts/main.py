@@ -34,11 +34,21 @@ features = extract_feature.edgeRemover(dogSpace=DoG,
                                        r=10)
 
 """STEP 3 : making descriptor"""
-oriFeatures = orientation.assign(dogSpace=DoG, sigmas=sigmas, features=features)
+oriFeatures = orientation.assign(dogSpace=DoG,
+                                 sigmas=sigmas,
+                                 features=features)
 featureVect = orientation.featureVector(oriFeatures=oriFeatures,
                                         dogSpace=DoG)
 
-t2 = process_time()
-print("Process time from Chapter 3 to Chapter 5 : ", t2 - t1)
-
 """STEP 4 : matching feature point"""
+root = KdTree.makeTree(featureVect)
+
+t2 = process_time()
+print("PROCESS TIME : ", t2-t1)
+
+print(root.val)
+print(root.dim)
+print(root.left)
+print(root.right)
+
+
