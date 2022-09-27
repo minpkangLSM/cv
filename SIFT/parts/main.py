@@ -87,9 +87,4 @@ root = KdTree.makeTree(featureVect)
 t2 = process_time()
 print("PROCESS TIME : ", t2-t1)
 
-print(root.val)
-print(root.dim)
-print(root.left)
-print(root.right)
-
 

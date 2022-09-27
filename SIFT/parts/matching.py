@@ -103,14 +103,15 @@ class matching :
 
     nearestNode = None
     nearestDistance = np.inf
+    secondDistance = np.inf
 
     @staticmethod
     def isLeaf(node):
         return (node.left == None and node.right == None)
 
     @staticmethod
-    def findNearest(kdTree,
-                     target):
+    def findNearest_stack(kdTree,
+                          target):
         s = [] # list for stack
         root = kdTree
         while not matching.isLeaf(root) :
@@ -132,21 +133,25 @@ class matching :
         distance = np.linalg.norm(root.val-target)
         if distance < matching.nearestDistance :
             matching.nearestNode = root
+            matching.secondDistance = matching.nearestDistance
             matching.nearestDistance = distance
 
         while len(s) != 0 :
             (node, direction) = s.pop()
             distance = np.sqrt(((node.val-target)*(node.val-target)).sum())
+
             if distance < matching.nearestDistance :
                 matching.nearestNode = node
+                matching.secondDistance = matching.nearestDistance
                 matching.nearestDistance = distance
+
             boundaryDistance = np.abs(node.val[node.dim]-target[node.dim])
             if boundaryDistance < matching.nearestDistance :
                 if direction == "left":
-                    matching.findNearest(kdTree=node.left,
+                    matching.findNearest_stack(kdTree=node.left,
                                          target=target)
                 elif direction == "right":
-                    matching.findNearest(kdTree=node.right,
+                    matching.findNearest_stack(kdTree=node.right,
                                          target=target)
 
 if __name__ == "__main__":
@@ -165,15 +170,16 @@ if __name__ == "__main__":
     target = np.array([7,5.5])
     kdTree = KdTree.makeTree(vectors=arr)
 
-    # 공통변수때문에 인스턴스를 선언하고, findNearest를 수행해야함 (따로
+    # 공통변수때문에 인스턴스를 선언하고, findNearest를 수행 해야함.
     a = matching()
-    a.findNearest(kdTree=kdTree,
-                   target=target)
-
-    print("NEAREST NODE : ", a.nearestNode.val)
-    print("DISTANCE : ", a.nearestDistance)
+    a.findNearest_stack(kdTree=kdTree,
+                        target=target)
 
     t2 = process_time()
     print(t2-t1)
+    print("NEAREST NODE : ", a.nearestNode.val)
+    print("DISTANCE : ", a.nearestDistance)
+    print("SECOND DISTANCE : ", a.secondDistance)
+    print("DISTANACE RATIO : ", a.nearestDistance/a.secondDistance)
 
 
