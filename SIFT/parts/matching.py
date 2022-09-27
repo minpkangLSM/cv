@@ -101,7 +101,54 @@ class KdTree :
 
 class matching :
 
-    pass
+    nearestNode = None
+    currentNearest = np.inf
+
+    @staticmethod
+    def isLeaf(node):
+        return (node.left == None and node.right == None)
+
+    @staticmethod
+    def closestPoint(kdTree,
+                     target):
+
+        s = [] # list for stack
+        root = kdTree
+
+        while True :
+            if target[root.dim] < root.val[root.dim] :
+                s.append((root, "right"))
+                if root.left.val is None : break
+                root = root.left
+            else :
+                s.append((root, "left"))
+                if root.right.val is None : break
+                root = root.right
+
+        distance = np.sqrt(((root.val-target)*(root.val-target)).sum())
+        if distance < matching.currentNearest :
+            matching.nearestNode = root
+            matching.currentNearest = distance
+
+        while len(s) != 0 :
+            (node, direction) = s.pop()
+
+            distance = np.sqrt(((node.val-target)*(node.val-target)).sum())
+            if distance < matching.currentNearest :
+                matching.nearestNode = root
+                matching.currentNearest = distance
+
+            boundaryDistance = np.abs(node.val[node.dim]-target[node.dim])
+            if boundaryDistance < matching.currentNearest :
+                if direction == "left":
+                    matching.closestPoint(kdTree=node.left,
+                                          target=target)
+                elif direction == "right":
+                    matching.currentNearest(kdTree=node.right,
+                                            target=target)
+
+
+        return s
 
 if __name__ == "__main__":
 
@@ -116,7 +163,11 @@ if __name__ == "__main__":
                     [5,8],
                     [6,10],
                     [6,11]])
-    root = KdTree.makeTree(vectors=arr)
+    kdTree = KdTree.makeTree(vectors=arr)
+
+    s = matching.closestPoint(kdTree=kdTree,
+                              target=np.array([7,5.5]))
+
     t2 = process_time()
     print(t2-t1)
 
