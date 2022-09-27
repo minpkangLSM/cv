@@ -6,7 +6,7 @@ from numba import jit, int64, float32, float64
 
 class Node:
     def __init__(self,
-                 value,
+                 value=None,
                  dimension=None,
                  leftNode=None,
                  rightNode=None):
@@ -102,53 +102,52 @@ class KdTree :
 class matching :
 
     nearestNode = None
-    currentNearest = np.inf
+    nearestDistance = np.inf
 
     @staticmethod
     def isLeaf(node):
         return (node.left == None and node.right == None)
 
     @staticmethod
-    def closestPoint(kdTree,
+    def findNearest(kdTree,
                      target):
-
         s = [] # list for stack
         root = kdTree
-
-        while True :
+        while not matching.isLeaf(root) :
             if target[root.dim] < root.val[root.dim] :
-                s.append((root, "right"))
-                if root.left.val is None : break
-                root = root.left
+                if root.left.val is None :
+                    s.append((root, "left"))
+                    root = root.right
+                else :
+                    s.append((root, "right"))
+                    root = root.left
             else :
-                s.append((root, "left"))
-                if root.right.val is None : break
-                root = root.right
+                if root.right.val is None :
+                    s.append((root, "left"))
+                    root = root.left
+                else :
+                    s.append((root, "right"))
+                    root = root.right
 
-        distance = np.sqrt(((root.val-target)*(root.val-target)).sum())
-        if distance < matching.currentNearest :
+        distance = np.linalg.norm(root.val-target)
+        if distance < matching.nearestDistance :
             matching.nearestNode = root
-            matching.currentNearest = distance
+            matching.nearestDistance = distance
 
         while len(s) != 0 :
             (node, direction) = s.pop()
-
             distance = np.sqrt(((node.val-target)*(node.val-target)).sum())
-            if distance < matching.currentNearest :
-                matching.nearestNode = root
-                matching.currentNearest = distance
-
+            if distance < matching.nearestDistance :
+                matching.nearestNode = node
+                matching.nearestDistance = distance
             boundaryDistance = np.abs(node.val[node.dim]-target[node.dim])
-            if boundaryDistance < matching.currentNearest :
+            if boundaryDistance < matching.nearestDistance :
                 if direction == "left":
-                    matching.closestPoint(kdTree=node.left,
-                                          target=target)
+                    matching.findNearest(kdTree=node.left,
+                                         target=target)
                 elif direction == "right":
-                    matching.currentNearest(kdTree=node.right,
-                                            target=target)
-
-
-        return s
+                    matching.findNearest(kdTree=node.right,
+                                         target=target)
 
 if __name__ == "__main__":
 
@@ -163,10 +162,16 @@ if __name__ == "__main__":
                     [5,8],
                     [6,10],
                     [6,11]])
+    target = np.array([7,5.5])
     kdTree = KdTree.makeTree(vectors=arr)
 
-    s = matching.closestPoint(kdTree=kdTree,
-                              target=np.array([7,5.5]))
+    # 공통변수때문에 인스턴스를 선언하고, findNearest를 수행해야함 (따로
+    a = matching()
+    a.findNearest(kdTree=kdTree,
+                   target=target)
+
+    print("NEAREST NODE : ", a.nearestNode.val)
+    print("DISTANCE : ", a.nearestDistance)
 
     t2 = process_time()
     print(t2-t1)
