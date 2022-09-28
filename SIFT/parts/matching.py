@@ -10,13 +10,15 @@ class Node:
                  dimension=None,
                  leftNode=None,
                  rightNode=None,
-                 distance=None):
+                 distance=None,
+                 direction=None):
 
         self.val = value
         self.dim = dimension
         self.left = leftNode
         self.right = rightNode
         self.distance = distance
+        self.direction = direction
 
 class KdTree :
 
@@ -103,13 +105,14 @@ class KdTree :
 
 class MinHeap :
 
-    def __init__(self, list):
-        self.list = list
-        self.length = len(list)-1
+    def __init__(self):
+        self.list = [None]
+        self.length = len(self.list)-1
 
     def insertHeap(self,
                    value,
-                   distance):
+                   distance,
+                   direction):
         """
         :param value: kdTree Node
         :param distance: distance to target
@@ -118,11 +121,12 @@ class MinHeap :
 
         self.length += 1
         value.distance = distance
+        value.direction = direction
         self.list.append(value)
         temp = value
 
         # recover heap order
-        j = self.length
+        j = self.length # index of last(input) node
 
         while j > 1 and self.list[j//2].distance > self.list[j].distance :
             self.list[j] = self.list[j//2]
@@ -139,16 +143,15 @@ class MinHeap :
         child = 2
 
         while child <= self.length :
-
             if child < self.length and self.list[child].distance > self.list[child+1].distance:
                 child += 1
-            if self.list[parent].distance < self.list[child].distance :
-                self.list[child] = self.list[parent]
-                parent = child
-                child = child*2
-        self.list[child] = temp
-
-        # return item
+            if temp.distance <= self.list[child].distance : break
+            self.list[parent] = self.list[child]
+            parent = child
+            child = 2*child
+        self.list[parent] = temp
+        del self.list[-1]
+        return item
 
 class matching :
 
@@ -208,7 +211,62 @@ class matching :
     @staticmethod
     def BBF(kdTree,
             target):
-        pass
+
+        h = MinHeap()
+        root = kdTree
+
+        while not matching.isLeaf(root):
+            if target[root.dim] < root.val[root.dim]:
+                if root.left.val is None:
+                    distance = np.linalg.norm(root.val-target)
+                    h.insertHeap(value=root,
+                                 distance=distance,
+                                 direction="left")
+                    root = root.right
+                else:
+                    distance = np.linalg.norm(root.val - target)
+                    h.insertHeap(value=root,
+                                 distance=distance,
+                                 direction="right")
+                    root = root.left
+            else:
+                if root.right.val is None:
+                    distance = np.linalg.norm(root.val - target)
+                    h.insertHeap(value=root,
+                                 distance=distance,
+                                 direction="left")
+                    root = root.left
+                else:
+                    distance = np.linalg.norm(root.val - target)
+                    h.insertHeap(value=root,
+                                 distance=distance,
+                                 direction="right")
+                    root = root.right
+
+        distance = np.linalg.norm(root.val - target)
+        if distance < matching.nearestDistance:
+            matching.nearestNode = root
+            matching.secondDistance = matching.nearestDistance
+            matching.nearestDistance = distance
+
+        while h.length != 0:
+            minVal = h.deleteHeap()
+            distance = np.sqrt(((minVal.val - target) * (minVal.val - target)).sum())
+
+            if distance < matching.nearestDistance:
+                matching.nearestNode = minVal
+                matching.secondDistance = matching.nearestDistance
+                matching.nearestDistance = distance
+
+            boundaryDistance = np.abs(minVal.val[minVal.dim] - target[minVal.dim])
+            if boundaryDistance < matching.nearestDistance:
+                if minVal.direction == "left":
+                    matching.BBF(kdTree=minVal.left,
+                                 target=target)
+                elif minVal.direction == "right":
+                    matching.BBF(kdTree=minVal.right,
+                                 target=target)
+
 if __name__ == "__main__":
 
     t1 = process_time()
@@ -229,6 +287,8 @@ if __name__ == "__main__":
     a = matching()
     a.findNearest_stack(kdTree=kdTree,
                         target=target)
+    a.BBF(kdTree=kdTree,
+          target=target)
 
     t2 = process_time()
     print(t2-t1)

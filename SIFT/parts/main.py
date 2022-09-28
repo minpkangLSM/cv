@@ -82,7 +82,10 @@ for idx in features.keys():
 plt.show()
 
 """STEP 4 : matching feature point"""
+# STEP 4-1 : make kd tree for matching
 root = KdTree.makeTree(featureVect)
+
+# STEP 4-2 : matching feature
 
 t2 = process_time()
 print("PROCESS TIME : ", t2-t1)
