@@ -9,12 +9,14 @@ class Node:
                  value=None,
                  dimension=None,
                  leftNode=None,
-                 rightNode=None):
+                 rightNode=None,
+                 distance=None):
 
         self.val = value
         self.dim = dimension
         self.left = leftNode
         self.right = rightNode
+        self.distance = distance
 
 class KdTree :
 
@@ -99,6 +101,55 @@ class KdTree :
 
         return vectors, maxDim
 
+class MinHeap :
+
+    def __init__(self, list):
+        self.list = list
+        self.length = len(list)-1
+
+    def insertHeap(self,
+                   value,
+                   distance):
+        """
+        :param value: kdTree Node
+        :param distance: distance to target
+        :return:
+        """
+
+        self.length += 1
+        value.distance = distance
+        self.list.append(value)
+        temp = value
+
+        # recover heap order
+        j = self.length
+
+        while j > 1 and self.list[j//2].distance > self.list[j].distance :
+            self.list[j] = self.list[j//2]
+            j = j//2
+
+        self.list[j] = temp
+
+    def deleteHeap(self):
+
+        item = self.list[1]
+        temp = self.list[-1]
+        self.length -= 1
+        parent = 1
+        child = 2
+
+        while child <= self.length :
+
+            if child < self.length and self.list[child].distance > self.list[child+1].distance:
+                child += 1
+            if self.list[parent].distance < self.list[child].distance :
+                self.list[child] = self.list[parent]
+                parent = child
+                child = child*2
+        self.list[child] = temp
+
+        # return item
+
 class matching :
 
     nearestNode = None
@@ -154,6 +205,10 @@ class matching :
                     matching.findNearest_stack(kdTree=node.right,
                                          target=target)
 
+    @staticmethod
+    def BBF(kdTree,
+            target):
+        pass
 if __name__ == "__main__":
 
     t1 = process_time()
