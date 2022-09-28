@@ -324,7 +324,7 @@ if __name__ == "__main__":
 
     imgDir = "D:\\cv\\data\\prac\\cannytest.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE) # Height(Y), Width(X)
-    img = cv2.resize(img, (250, 200)) # cv2.resize input shape order ( X(Width), Y(Height))
+    img = cv2.resize(img, (150, 200)) # cv2.resize input shape order ( X(Width), Y(Height))
     # img shape order Y, X (height, width)
     img = img
     deg = 0

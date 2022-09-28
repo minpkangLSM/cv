@@ -41,6 +41,7 @@ class orientation :
                                                         sigmaList=sigma,
                                                         theta=theta,
                                                         mag=magnitude)
+            print(newFeatures.shape)
             oriFeatures[idx] = (newFeatures[:,0],
                                 newFeatures[:,1],
                                 newFeatures[:,2],
