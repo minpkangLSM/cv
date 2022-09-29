@@ -158,6 +158,7 @@ class matching :
     nearestNode = None
     nearestDistance = np.inf
     secondDistance = np.inf
+    tryCnt = 0
 
     @staticmethod
     def isLeaf(node):
@@ -210,7 +211,8 @@ class matching :
 
     @staticmethod
     def BBF(kdTree,
-            target):
+            target,
+            tryLimit=20):
 
         h = MinHeap()
         root = kdTree
@@ -248,6 +250,9 @@ class matching :
             matching.nearestNode = root
             matching.secondDistance = matching.nearestDistance
             matching.nearestDistance = distance
+
+        matching.tryCnt += 1
+        if matching.tryCnt >= tryLimit : return
 
         while h.length != 0:
             minVal = h.deleteHeap()

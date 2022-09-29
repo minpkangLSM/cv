@@ -3,13 +3,17 @@ from featureExtractor import *
 from descriptor import *
 from matching import *
 
-def dataBase(imgDir) :
+def dataBase(imgDir,
+             imgNorm = 255.) :
 
     t1 = process_time()
+
     """STEP 1 : Loading an image"""
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE)  # shape order Y(height), X(width)
-    print(img)
-    img = cv2.resize(img, dsize=(150, 320))  # cv2.resize input shape order X(width), Y(height)
+    img = cv2.resize(img, dsize=(300, 500))  # cv2.resize input shape order X(width), Y(height)
+
+    # STEP 1-2 : normalize image into 0 ~ 1
+    img = img / imgNorm # normalize pixel value in the range [0, 1] - Lowe, 2004, chpater 3.2 (p.96)
 
     """STEP 2 : Extracting key point from the image"""
     # STEP 2-1 : build scale space from the image
@@ -26,7 +30,13 @@ def dataBase(imgDir) :
     localizedExtremum = extract_feature.localization(dogSpace=DoG,
                                                      extremum=naiveExtremum,
                                                      offsetThr=0.5,
-                                                     contrastThr=0.03)
+                                                     contrastThr=0.03) # Thr로 인해 localized 결과가 없어져버릴 수도 있다.
+    print("localizedEx 0 : ", localizedExtremum[0])
+    print("localizedEx 1 : ", localizedExtremum[1])
+    print("localizedEx 2 : ", localizedExtremum[2])
+    print("localizedEx 3 : ", localizedExtremum[3])
+    print("localizedEx 4 : ", localizedExtremum[4])
+
     # STEP 2-5 : remove features on the edge
     features = extract_feature.edgeRemover(dogSpace=DoG,
                                            extremum=localizedExtremum,
@@ -38,6 +48,7 @@ def dataBase(imgDir) :
     oriFeatures = orientation.assign(dogSpace=DoG,
                                      sigmas=sigmas,
                                      features=features)
+
     featureVect = orientation.featureVector(oriFeatures=oriFeatures,
                                             dogSpace=DoG)
     t2 = process_time()

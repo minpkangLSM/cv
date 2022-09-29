@@ -99,7 +99,7 @@ class extract_feature :
                 if sub_idx == 0 : dogOctave = diff
                 else : dogOctave = np.concatenate([dogOctave, diff], axis=-1)
 
-            dogSpace[idx] = dogOctave
+            dogSpace[idx] = dogOctave.astype(np.float64)
 
         return dogSpace
 
@@ -124,13 +124,13 @@ class extract_feature :
         for idx in dogIdx:
             octave = dogSpace[idx]
             extreBox = extract_feature.__extremumSub(octave)
-            extIdx = np.where(extreBox == 1)
+            extIdx = np.where(extreBox == 1) # 극점이 존재하지 않는 옥타브가 존재할 수도 있다. (대비 필요)
             extremum[idx] = extIdx
 
         return extremum
 
     @staticmethod
-    @jit(uint8[:, :, :](uint8[:, :, :]))
+    @jit(float64[:, :, :](float64[:, :, :]))
     def __extremumSub(octave):
         """
         SUB function of def. extractExtremum for locate extremum in DOG space
@@ -138,7 +138,7 @@ class extract_feature :
         :return:
         """
         boolBox = np.ones_like(octave)
-        extrBox = np.zeros_like(octave).astype(uint8)
+        extrBox = np.zeros_like(octave).astype(float64)
         for x in range(1, boolBox.shape[1] - 1):
             for y in range(1, boolBox.shape[0] - 1):
                 for z in range(1, boolBox.shape[2] - 1):
@@ -206,26 +206,34 @@ class extract_feature :
             dDdy2 = dy2[samplePoints][np.newaxis, :]
             dDdzy = dzy[samplePoints][np.newaxis, :]
             dDdz2 = dz2[samplePoints][np.newaxis, :]
+
             hessianTmp = np.concatenate([dDdx2, dDdyx, dDdxz, dDdyx, dDdy2, dDdzy, dDdxz, dDdzy, dDdz2], axis=0)[:, :,
                          np.newaxis]
             hessian = hessianTmp.reshape((-1, 3, 3))
+
             """interpolate extremum location"""
-            XhatVal = np.matmul(hessian / 255, gradient / 255)  # normalize value in range 0 ~ 1
+            XhatVal = np.matmul(hessian, gradient)
             interpolatedTmp = copy.deepcopy(extremum[idx])
             for no, val in enumerate(XhatVal):
                 if any(abs(val)) >= offsetThr:
                     val = val.flatten()
-                    interpolatedTmp[0][no] = interpolatedTmp[0][no] - val[0]
-                    interpolatedTmp[1][no] = interpolatedTmp[1][no] - val[1]
-                    interpolatedTmp[2][no] = interpolatedTmp[2][no] - val[2]
+                    print("BEFORE: ", interpolatedTmp[0][no])
+                    print(val[0])
+                    interpolatedTmp[0][no] = interpolatedTmp[0][no].astype(np.float64) - val[0]
+                    interpolatedTmp[1][no] = interpolatedTmp[1][no].astype(np.float64) - val[1]
+                    interpolatedTmp[2][no] = interpolatedTmp[2][no].astype(np.float64) - val[2]
+                    print("AFTER: ", interpolatedTmp[0][no])
+            print(interpolatedTmp)
             """remove low contrast value"""
             iTmp = np.concatenate((interpolatedTmp[0][:, np.newaxis],
                                    interpolatedTmp[1][:, np.newaxis],
                                    interpolatedTmp[2][:, np.newaxis]), axis=-1)  # (N, 3)
+
             iTmp = iTmp[:, :, np.newaxis]  # (N, 3, 1)
             gradientRshp = gradient.transpose((0, 2, 1))
-            contrastVal = dogSpace[idx][extremum[idx]] / 255 + 0.5 * np.matmul(gradientRshp / 255, iTmp).flatten()
+            contrastVal = dogSpace[idx][extremum[idx]] / 255. + 0.5 * np.matmul(gradientRshp / 255., iTmp).flatten()
             contrastValIdx = np.where((contrastVal >= contrastThr) | (contrastVal <= -contrastThr))
+
             # discard value under contrastThr
             localizedExtremum[idx] = (extremum[idx][0][contrastValIdx],
                                       extremum[idx][1][contrastValIdx],

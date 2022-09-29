@@ -32,7 +32,7 @@ def sobel_axis(img):
     return imgDAxis
 
 def sobelHeightAxis(img,
-                    ddepth=cv2.CV_16S):
+                    ddepth=cv2.CV_64F):
     """
     해당 필터는 높이 방향으로만 처리되는 필터
     :param img:
@@ -45,7 +45,7 @@ def sobelHeightAxis(img,
     return imgDHeight
 
 def sobelWidthAxis(img,
-                   ddepth=cv2.CV_16S):
+                   ddepth=cv2.CV_64F):
     """
     해당 필터는 너비 방향으로만 처리되는 필터
     :param img:

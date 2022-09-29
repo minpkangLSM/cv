@@ -26,7 +26,12 @@ class orientation :
                                  ddepth=cv2.CV_64F)
             dx = sobelWidthAxis(subDog,
                                 ddepth=cv2.CV_64F)
+
+            # calculate magnitude and renormalize
             magnitude = np.sqrt(dy*dy+dx*dx)
+            magnitude[magnitude>=0.2] = 0.2 # Limit the maxium of value - Lowe, 2004, chapter 6.1 (p.102)
+            magnitude = magnitude/0.2 # Renormalize to unit length - Lowe, 2004, chapter 6.1 (p.102)
+
             theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
             theta = orientation.__quantize36(theta)
 
@@ -35,18 +40,24 @@ class orientation :
             locXs = features[idx][1].astype(np.int16)
             locZs = features[idx][2].astype(np.int16)
             sigma = np.array(sigmas[idx])
+
             newFeatures = orientation.__orientationHist(locYs=locYs,
                                                         locXs=locXs,
                                                         locZs=locZs,
                                                         sigmaList=sigma,
                                                         theta=theta,
                                                         mag=magnitude)
-            print(newFeatures.shape)
-            oriFeatures[idx] = (newFeatures[:,0],
-                                newFeatures[:,1],
-                                newFeatures[:,2],
-                                newFeatures[:,3])
 
+            if newFeatures.size != 0 :
+                oriFeatures[idx] = (newFeatures[:,0],
+                                    newFeatures[:,1],
+                                    newFeatures[:,2],
+                                    newFeatures[:,3])
+            else : # extremum이 없어서 비어있는 경우에는 히스토그램 생성이 불가하므로 empty 값으로 넣어준다.
+                oriFeatures[idx] = (np.array([]),
+                                    np.array([]),
+                                    np.array([]),
+                                    np.array([]))
         return oriFeatures
 
     @staticmethod
@@ -173,7 +184,12 @@ class orientation :
                                  ddepth=cv2.CV_64F)
             dx = sobelWidthAxis(subDog,
                                 ddepth=cv2.CV_64F)
-            magnitude = np.sqrt(dy*dy+dx*dx)
+
+            #calculate magnitude and renormalize
+            magnitude = np.sqrt(dy * dy + dx * dx)
+            magnitude[magnitude >= 0.2] = 0.2  # Limit the maxium of value - Lowe, 2004, chapter 6.1 (p.102)
+            magnitude = magnitude / 0.2  # Renormalize to unit length - Lowe, 2004, chapter 6.1 (p.102)
+
             theta = np.arctan2(dy,dx)*180/np.pi # rad to deg
             theta = orientation.__quantize8(theta)
 
@@ -195,6 +211,9 @@ class orientation :
                                                          locOs=locOs,
                                                          ori=theta,
                                                          mag=magnitude)
+            # normalize feature vector to unit length - 2004, Lowe, chapter 6.1 (p.101)
+            max = newFeatures.max(axis=-1).reshape(-1,1)
+            newFeatures[:, :128] = newFeatures[:, :128]/max
             if idx==0 : features = newFeatures
             else : features = np.concatenate((features, newFeatures), axis=0)
 
@@ -297,7 +316,10 @@ if __name__ == "__main__" :
     """STEP 1 : Loading an image"""
     imgDir = "D:\\cv\\data\\prac\\cannytest.png"
     img = cv2.imread(imgDir, cv2.IMREAD_GRAYSCALE) # shape order Y(height), X(width)
-    img = cv2.resize(img, (250, 200)) # cv2.resize input shape order X(width), Y(height)
+    img = cv2.resize(img, (250, 400)) # cv2.resize input shape order X(width), Y(height)
+
+    # STEP 1-2 : normalize image into 0 ~ 1
+    img = img / 255.
 
     """STEP 2 : Extracting key point from the image"""
     # STEP 2-1 : build scale space from the image
