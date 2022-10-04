@@ -198,7 +198,7 @@ class extract_feature :
             dDdx = dx[samplePoints][:, np.newaxis]
             dDdy = dy[samplePoints][:, np.newaxis]
             dDdz = dz[samplePoints][:, np.newaxis]
-            gradient = np.concatenate([dDdx, dDdy, dDdz], axis=1)[:, :, np.newaxis]
+            gradient = np.concatenate([dDdx, dDdy, dDdz], axis=1)[:, :, np.newaxis].astype(np.float64)
             # hessian \frac{d^2D}{dX^2}
             dDdx2 = dx2[samplePoints][np.newaxis, :]
             dDdxz = dxz[samplePoints][np.newaxis, :]
@@ -209,21 +209,22 @@ class extract_feature :
 
             hessianTmp = np.concatenate([dDdx2, dDdyx, dDdxz, dDdyx, dDdy2, dDdzy, dDdxz, dDdzy, dDdz2], axis=0)[:, :,
                          np.newaxis]
-            hessian = hessianTmp.reshape((-1, 3, 3))
+            hessian = hessianTmp.reshape((-1, 3, 3)).astype(np.float64)
 
             """interpolate extremum location"""
             XhatVal = np.matmul(hessian, gradient)
             interpolatedTmp = copy.deepcopy(extremum[idx])
+            # convert dataType into float64
+            interpolatedTmp = (interpolatedTmp[0].astype(np.float64),
+                               interpolatedTmp[1].astype(np.float64),
+                               interpolatedTmp[2].astype(np.float64))
             for no, val in enumerate(XhatVal):
                 if any(abs(val)) >= offsetThr:
                     val = val.flatten()
-                    print("BEFORE: ", interpolatedTmp[0][no])
-                    print(val[0])
                     interpolatedTmp[0][no] = interpolatedTmp[0][no].astype(np.float64) - val[0]
                     interpolatedTmp[1][no] = interpolatedTmp[1][no].astype(np.float64) - val[1]
                     interpolatedTmp[2][no] = interpolatedTmp[2][no].astype(np.float64) - val[2]
-                    print("AFTER: ", interpolatedTmp[0][no])
-            print(interpolatedTmp)
+
             """remove low contrast value"""
             iTmp = np.concatenate((interpolatedTmp[0][:, np.newaxis],
                                    interpolatedTmp[1][:, np.newaxis],
@@ -232,8 +233,8 @@ class extract_feature :
             iTmp = iTmp[:, :, np.newaxis]  # (N, 3, 1)
             gradientRshp = gradient.transpose((0, 2, 1))
             contrastVal = dogSpace[idx][extremum[idx]] / 255. + 0.5 * np.matmul(gradientRshp / 255., iTmp).flatten()
-            contrastValIdx = np.where((contrastVal >= contrastThr) | (contrastVal <= -contrastThr))
 
+            contrastValIdx = np.where((contrastVal >= contrastThr) | (contrastVal <= -contrastThr))
             # discard value under contrastThr
             localizedExtremum[idx] = (extremum[idx][0][contrastValIdx],
                                       extremum[idx][1][contrastValIdx],

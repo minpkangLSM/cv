@@ -4,7 +4,8 @@ from descriptor import *
 from matching import *
 
 def dataBase(imgDir,
-             imgNorm = 255.) :
+             imgNorm = 255.,
+             kdTree=True) :
 
     t1 = process_time()
 
@@ -31,11 +32,11 @@ def dataBase(imgDir,
                                                      extremum=naiveExtremum,
                                                      offsetThr=0.5,
                                                      contrastThr=0.03) # Thr로 인해 localized 결과가 없어져버릴 수도 있다.
-    print("localizedEx 0 : ", localizedExtremum[0])
-    print("localizedEx 1 : ", localizedExtremum[1])
-    print("localizedEx 2 : ", localizedExtremum[2])
-    print("localizedEx 3 : ", localizedExtremum[3])
-    print("localizedEx 4 : ", localizedExtremum[4])
+    # print("localizedEx 0 : ", localizedExtremum[0])
+    # print("localizedEx 1 : ", localizedExtremum[1])
+    # print("localizedEx 2 : ", localizedExtremum[2])
+    # print("localizedEx 3 : ", localizedExtremum[3])
+    # print("localizedEx 4 : ", localizedExtremum[4])
 
     # STEP 2-5 : remove features on the edge
     features = extract_feature.edgeRemover(dogSpace=DoG,
@@ -51,8 +52,15 @@ def dataBase(imgDir,
 
     featureVect = orientation.featureVector(oriFeatures=oriFeatures,
                                             dogSpace=DoG)
+    featureVect = featureVect[:,:128]
     t2 = process_time()
     print("t1 ~ t2 PROCESS TIME : ", t2-t1)
+    if not kdTree : return featureVect
+    else:
+        """STEP 4 : matching feature point"""
+        # STEP 4-1 : make kd tree for matching
+        root = KdTree.makeTree(featureVect)
+        return root
     #
     # # visualize feature points
     # img = img
@@ -94,10 +102,5 @@ def dataBase(imgDir,
     #     ax.scatter(x_list, y_list)
     #
     # plt.show()
-    """STEP 4 : matching feature point"""
-    # STEP 4-1 : make kd tree for matching
-    root = KdTree.makeTree(featureVect)
-
-    return root
 
 

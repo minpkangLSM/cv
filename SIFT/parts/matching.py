@@ -212,7 +212,7 @@ class matching :
     @staticmethod
     def BBF(kdTree,
             target,
-            tryLimit=20):
+            tryLimit=5):
 
         h = MinHeap()
         root = kdTree
