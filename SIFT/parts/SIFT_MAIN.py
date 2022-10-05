@@ -52,7 +52,6 @@ def dataBase(imgDir,
 
     featureVect = orientation.featureVector(oriFeatures=oriFeatures,
                                             dogSpace=DoG)
-    featureVect = featureVect[:,:128]
     t2 = process_time()
     print("t1 ~ t2 PROCESS TIME : ", t2-t1)
     if not kdTree : return featureVect

@@ -23,8 +23,16 @@ class Node:
 class KdTree :
 
     @staticmethod
-    def makeTree(vectors):
-
+    def makeTree(vectors,
+                 dimDef = 128):
+        """
+        추출된 feature를 바탕으로 KdTree 만들기
+        :param vectors: 입력 벡터 shape = N x 132 (N : 피쳐의 수)
+        :param dimDef: dimension definition, 입력 벡터에서 사용할 차원의 range ( 0 ~ dimDef까지 )
+        -> 무슨 말이냐면, SIFT 알고리즘에서 생성하는 벡터가 현재 128 + 4 차원 (128 : orientation, 4 : x, y, z, orientation)
+        -> 뒤의 4차원은 distance를 구할 때 사용하지 않을 것이기에 기본적으로 128을 default 값으로 설정(oreintation만 사용하겠다는 의미)
+        :return:
+        """
         if vectors.size == 0 :
             node = Node(value=None)
             return node
@@ -34,8 +42,8 @@ class KdTree :
             return node
 
         else :
-            # 분산이 가장 큰 차원 찾기
-            maxDim = KdTree.findMaxDim(vectors=vectors)
+            # 분산이 가장 큰 차원 찾기 (128차원 내에서만 찾아야 한다)
+            maxDim = KdTree.findMaxDim(vectors=vectors[:,:dimDef]) # 차원 range 설정
 
             # 해당 분산을 갖는 축을 기준으로 vectors 정렬
             vectors, maxDim = KdTree.mergeSort(vectors=vectors,
@@ -160,16 +168,22 @@ class matching :
     secondDistance = np.inf
     tryCnt = 0
 
-    @staticmethod
-    def isLeaf(node):
+    def isLeaf(self,
+               node):
         return (node.left == None and node.right == None)
 
-    @staticmethod
-    def findNearest_stack(kdTree,
+    def findNearest_stack(self,
+                          kdTree,
                           target):
+        """
+        STACK 기반의 최근접 이웃 찾기
+        :param kdTree:
+        :param target:
+        :return:
+        """
         s = [] # list for stack
         root = kdTree
-        while not matching.isLeaf(root) :
+        while not self.isLeaf(root) :
             if target[root.dim] < root.val[root.dim] :
                 if root.left.val is None :
                     s.append((root, "left"))
@@ -185,51 +199,62 @@ class matching :
                     s.append((root, "right"))
                     root = root.right
 
-        distance = np.linalg.norm(root.val-target)
-        if distance < matching.nearestDistance :
-            matching.nearestNode = root
-            matching.secondDistance = matching.nearestDistance
-            matching.nearestDistance = distance
+        distance = np.linalg.norm(root.val[:128]-target[:128])
+        if distance < self.nearestDistance :
+            self.nearestNode = root
+            self.secondDistance = self.nearestDistance
+            self.nearestDistance = distance
 
         while len(s) != 0 :
             (node, direction) = s.pop()
-            distance = np.sqrt(((node.val-target)*(node.val-target)).sum())
+            distance = np.linalg.norm(node.val[:128]-target[:128])
 
-            if distance < matching.nearestDistance :
-                matching.nearestNode = node
-                matching.secondDistance = matching.nearestDistance
-                matching.nearestDistance = distance
+            if distance < self.nearestDistance :
+                self.nearestNode = node
+                self.secondDistance = matching.nearestDistance
+                self.nearestDistance = distance
 
             boundaryDistance = np.abs(node.val[node.dim]-target[node.dim])
-            if boundaryDistance < matching.nearestDistance :
+            if boundaryDistance < self.nearestDistance :
                 if direction == "left":
-                    matching.findNearest_stack(kdTree=node.left,
+                    self.findNearest_stack(kdTree=node.left,
                                          target=target)
                 elif direction == "right":
-                    matching.findNearest_stack(kdTree=node.right,
+                    self.findNearest_stack(kdTree=node.right,
                                          target=target)
 
-    @staticmethod
-    def BBF(kdTree,
+    def BBF(self,
+            kdTree,
             target,
-            tryLimit=5):
+            tryLimit=200,
+            dimDef=128):
+        """
+        Best Bin Find algorithm, BBF
+        MIN HEAP 기반의 최근접 이웃 찾기
+        :param kdTree: database KD tree
+        :param target: 1 x 132 shape의 vector
+        :param tryLimit: min heap으로 찾는 횟수 (제한)
+        :param deimDef: feature vector가 현재 132차원 (128 : orientation, 4 : x,y,z,orientation)이며,
+                        distance 등을 구할 때는 반드시 orientation만으로 계산해야하므로 이를 위한 dimension range 값
+        :return:
+        """
 
         h = MinHeap()
         root = kdTree
 
-        while not matching.isLeaf(root):
+        while not self.isLeaf(root):
             if target[root.dim] < root.val[root.dim]:
                 if root.left.val is None:
                     distance = np.linalg.norm(root.val-target)
                     h.insertHeap(value=root,
                                  distance=distance,
-                                 direction="left")
+                                 direction="right")
                     root = root.right
                 else:
                     distance = np.linalg.norm(root.val - target)
                     h.insertHeap(value=root,
                                  distance=distance,
-                                 direction="right")
+                                 direction="left")
                     root = root.left
             else:
                 if root.right.val is None:
@@ -245,32 +270,39 @@ class matching :
                                  direction="right")
                     root = root.right
 
-        distance = np.linalg.norm(root.val - target)
-        if distance < matching.nearestDistance:
-            matching.nearestNode = root
-            matching.secondDistance = matching.nearestDistance
-            matching.nearestDistance = distance
-
-        matching.tryCnt += 1
-        if matching.tryCnt >= tryLimit : return
+        distance = np.linalg.norm(root.val[:dimDef] - target[:dimDef])
+        if distance < self.nearestDistance:
+            self.nearestNode = root
+            self.secondDistance = self.nearestDistance
+            self.nearestDistance = distance
+        elif distance < self.secondDistance and distance > self.nearestDistance:
+            # nearest와 거리가 완전히 secondDistance도 nearest와 같아지는 것을 방지하기 위해 2번째 조건 추가
+            self.secondDistance = distance
+        self.tryCnt += 1
+        if self.tryCnt >= tryLimit : return
 
         while h.length != 0:
             minVal = h.deleteHeap()
-            distance = np.sqrt(((minVal.val - target) * (minVal.val - target)).sum())
-
-            if distance < matching.nearestDistance:
-                matching.nearestNode = minVal
-                matching.secondDistance = matching.nearestDistance
-                matching.nearestDistance = distance
+            distance = np.linalg.norm(minVal.val[:dimDef] - target[:dimDef])
+            if distance < self.nearestDistance:
+                self.nearestNode = minVal
+                self.secondDistance = self.nearestDistance
+                self.nearestDistance = distance
+            elif distance < self.secondDistance and distance > self.nearestDistance :
+                # nearest와 distance가 같으면 secondDistance도 nearest와 같아지는 것을 방지하기 위해 2번째 조건 추가
+                self.secondDistance = distance
 
             boundaryDistance = np.abs(minVal.val[minVal.dim] - target[minVal.dim])
-            if boundaryDistance < matching.nearestDistance:
+            if boundaryDistance < self.nearestDistance:
                 if minVal.direction == "left":
-                    matching.BBF(kdTree=minVal.left,
+                    self.BBF(kdTree=minVal.left,
                                  target=target)
+                    # if matching.tryCnt >= tryLimit : return # 재귀단계에서 lim을 넘어서 나온 경우, 종료해야 한다.
                 elif minVal.direction == "right":
-                    matching.BBF(kdTree=minVal.right,
+
+                    self.BBF(kdTree=minVal.right,
                                  target=target)
+            if self.tryCnt >= tryLimit: return # 재귀단계에서 lim을 넘어서 나온 경우, 종료해야 한다.
 
 if __name__ == "__main__":
 
