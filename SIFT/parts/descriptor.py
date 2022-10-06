@@ -211,6 +211,9 @@ class orientation :
                                                          locOs=locOs,
                                                          ori=theta,
                                                          mag=magnitude)
+            idxArrTmp = np.ones(newFeatures.shape[0]).reshape(-1,1)
+            idxArr = idxArrTmp * idx
+            newFeatures = np.concatenate((newFeatures, idxArr), axis=-1) # octave idx 정보 추가
             # normalize feature vector to unit length - 2004, Lowe, chapter 6.1 (p.101)
             max = newFeatures.max(axis=-1).reshape(-1,1)
             newFeatures[:, :128] = newFeatures[:, :128]/max

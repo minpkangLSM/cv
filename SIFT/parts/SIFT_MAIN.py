@@ -1,4 +1,5 @@
 import cv2
+from matplotlib import pyplot as plt
 from featureExtractor import *
 from descriptor import *
 from matching import *
@@ -49,20 +50,12 @@ def dataBase(imgDir,
     oriFeatures = orientation.assign(dogSpace=DoG,
                                      sigmas=sigmas,
                                      features=features)
-
     featureVect = orientation.featureVector(oriFeatures=oriFeatures,
                                             dogSpace=DoG)
     t2 = process_time()
     print("t1 ~ t2 PROCESS TIME : ", t2-t1)
-    if not kdTree : return featureVect
-    else:
-        """STEP 4 : matching feature point"""
-        # STEP 4-1 : make kd tree for matching
-        root = KdTree.makeTree(featureVect)
-        return root
-    #
+
     # # visualize feature points
-    # img = img
     # deg = 0
     # fig, ax = plt.subplots()
     # ax.imshow(img, cmap='gray')
@@ -101,5 +94,12 @@ def dataBase(imgDir,
     #     ax.scatter(x_list, y_list)
     #
     # plt.show()
+
+    if not kdTree : return featureVect
+    else:
+        """STEP 4 : matching feature point"""
+        # STEP 4-1 : make kd tree for matching
+        root = KdTree.makeTree(featureVect)
+        return root
 
 
