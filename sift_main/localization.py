@@ -15,6 +15,7 @@ Accurate Keypoint Localization
 """
 def localize(dogSpace,
              extremaLocation,
+             interval_num,
              offsetThr=0.5,
              convergenceThr=3):
     """
@@ -37,14 +38,16 @@ def localize(dogSpace,
 
         extremasLocalized = localizeSub(octave=octave,
                                         extremas=extremasTmp,
+                                        interval_num=interval_num,
                                         offsetThr=offsetThr,
                                         convergenceThr=convergenceThr)
 
     t2 = process_time()
     print(t2-t1)
-@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, int16))
+@jit(float64[:,:](float64[:,:,:], int64[:,:], int16, float64, int16))
 def localizeSub(octave,
                 extremas,
+                interval_num,
                 offsetThr,
                 convergenceThr):
 
@@ -99,7 +102,7 @@ def localizeSub(octave,
         #continue
         Dxhat = octave[y,x,s] + 0.5 * np.dot(gradient.T, xhat.reshape(3, -1))
 
-        if abs(Dxhat) >= 0.04 :
+        if abs(Dxhat) * interval_num >= 0.04 :
             pass
 
 
