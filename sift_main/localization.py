@@ -26,7 +26,7 @@ def localize(dogSpace,
     :param offsetThr
     :return:
     """
-    print("CHAPTER 4 : LOCALIZING EXTREMAS FROM DOG SPACE")
+    print("\nCHAPTER 4 : LOCALIZING EXTREMAS FROM DOG SPACE")
     print("\t LOCALIZING EXTREMAS & REMOVING FEATURES ON EDGES...")
     t1 = process_time()
     extremaLocalizedDict = {}
