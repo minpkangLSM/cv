@@ -55,6 +55,7 @@ def localize(dogSpace,
         print("\t  - THE NUM OF KEYPOINTS : BEFORE : {0} -> AFTER {1}".format(len(extremaLocation[octaveIdx][0]),
                                                                               extremaLocalizedDict[octaveIdx].shape[0]))
     print("\t===========================================")
+    return extremaLocalizedDict
 
 @jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64))
 def localizeSub(octave,

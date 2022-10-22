@@ -18,6 +18,6 @@ if __name__ == "__main__" :
     dogSpace = dog(scaleSpace=space)
     extremaLocation = extremaDetection(dogSpace=dogSpace,
                                        s=s)
-    localize(dogSpace=dogSpace,
-             interval_num=s,
-             extremaLocation=extremaLocation)
+    extremasLocalized = localize(dogSpace=dogSpace,
+                                 interval_num=s,
+                                 extremaLocation=extremaLocation)
