@@ -25,7 +25,7 @@ def scaleSpace(img,
     :param sigma: gaussian scale parameter (default = 1.6)
     :return: space, sigmas
     """
-    print("CHAPTER 3 : GENERATE SCALE SPACE FOR AN IMAGE...")
+    print("CHAPTER 3 : GENERATE SCALE SPACE FOR AN IMAGE.")
     print("\tGENERATING SCALE SPACE FOR THE IMAGE..")
     startTime = process_time()
     # set parameters

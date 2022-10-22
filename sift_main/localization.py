@@ -17,7 +17,8 @@ def localize(dogSpace,
              extremaLocation,
              interval_num,
              offsetThr=0.5,
-             convergenceThr=3):
+             convergenceThr=5,
+             eigenRatio=10):
     """
     :param dogSpace
     :param extremaLocation
@@ -25,8 +26,10 @@ def localize(dogSpace,
     :param offsetThr
     :return:
     """
-    print("CHAPTER 4 : LOCALIZING EXTREMAS IN DOG SPACE...")
+    print("CHAPTER 4 : LOCALIZING EXTREMAS FROM DOG SPACE")
+    print("\t LOCALIZING EXTREMAS & REMOVING FEATURES ON EDGES...")
     t1 = process_time()
+    extremaLocalizedDict = {}
     # localizing
     for octaveIdx in extremaLocation.keys() :
 
@@ -40,25 +43,35 @@ def localize(dogSpace,
                                         extremas=extremasTmp,
                                         interval_num=interval_num,
                                         offsetThr=offsetThr,
-                                        convergenceThr=convergenceThr)
+                                        convergenceThr=convergenceThr,
+                                        eigenRatio=eigenRatio)
+        extremaLocalizedDict[octaveIdx] = extremasLocalized
 
     t2 = process_time()
-    print(t2-t1)
-@jit(float64[:,:](float64[:,:,:], int64[:,:], int16, float64, int16))
+    print("\t- FINISHED LOCALIZING & REMOVING. TIME : {0}".format(t2-t1))
+    print("\t================= RESULTS =================")
+    for octaveIdx in extremaLocation.keys() :
+        print("\t  [OCTAVE {0}]".format(octaveIdx))
+        print("\t  - THE NUM OF KEYPOINTS : BEFORE : {0} -> AFTER {1}".format(len(extremaLocation[octaveIdx][0]),
+                                                                              extremaLocalizedDict[octaveIdx].shape[0]))
+    print("\t===========================================")
+
+@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64))
 def localizeSub(octave,
                 extremas,
                 interval_num,
                 offsetThr,
-                convergenceThr):
+                convergenceThr,
+                eigenRatio):
 
     extremasLocalized = np.zeros_like(extremas).astype(float64)
-
+    cnt = 0
     for y, x, s in extremas:
 
         convergence = True
         attempt = 0
-
         while True:
+
             if attempt > convergenceThr:  # 수렴 시도 횟수를 넘어간 경우
                 convergence = False
                 break
@@ -99,15 +112,22 @@ def localizeSub(octave,
         if not convergence:
             continue  # 수렴이 되지 않은 값이면 버린다.
 
-        #continue
+        # continue
         Dxhat = octave[y,x,s] + 0.5 * np.dot(gradient.T, xhat.reshape(3, -1))
 
-        if abs(Dxhat) * interval_num >= 0.04 :
-            pass
+        # # chapter4. [4.1. Eliminating Edge Responses]
+        if abs(Dxhat[0][0]) * interval_num >= 0.04 :
 
+            trace = hessian[0,0] + hessian[1,1]
+            det = hessian[0,0]*hessian[1,1] - hessian[0,1]*hessian[1,0]
 
+            if det > 0 and trace**2 * eigenRatio < det * (eigenRatio+1)**2 :
+                extremasLocalized[cnt, 0] = y
+                extremasLocalized[cnt, 1] = x
+                extremasLocalized[cnt, 2] = s
+                cnt+=1
 
-    return extremasLocalized
+    return extremasLocalized[:int(cnt), :]
 
 if __name__ == "__main__" :
 
