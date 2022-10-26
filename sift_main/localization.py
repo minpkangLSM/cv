@@ -41,6 +41,7 @@ def localize(dogSpace,
 
         extremasLocalized = localizeSub(octave=octave,
                                         extremas=extremasTmp,
+                                        octaveIdx=octaveIdx,
                                         interval_num=interval_num,
                                         offsetThr=offsetThr,
                                         convergenceThr=convergenceThr,
@@ -57,15 +58,18 @@ def localize(dogSpace,
     print("\t===========================================")
     return extremaLocalizedDict
 
-@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64))
+@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64, float64))
 def localizeSub(octave,
                 extremas,
+                octaveIdx,
                 interval_num,
                 offsetThr,
                 convergenceThr,
                 eigenRatio):
 
-    extremasLocalized = np.zeros_like(extremas).astype(float64)
+    extremasLocalized = np.zeros_like(extremas).astype(np.float64)
+    extremasLocalizedMod = np.zeros_like(extremas).astype(np.float64)
+
     cnt = 0
     for y, x, s in extremas:
 
@@ -113,7 +117,7 @@ def localizeSub(octave,
         if not convergence:
             continue  # 수렴이 되지 않은 값이면 버린다.
 
-        # continue
+        # Dxhat : 해당 위치의 extremum의 contrast값 계산
         Dxhat = octave[y,x,s] + 0.5 * np.dot(gradient.T, xhat.reshape(3, -1))
 
         # # chapter4. [4.1. Eliminating Edge Responses]
@@ -123,12 +127,23 @@ def localizeSub(octave,
             det = hessian[0,0]*hessian[1,1] - hessian[0,1]*hessian[1,0]
 
             if det > 0 and trace**2 * eigenRatio < det * (eigenRatio+1)**2 :
-                extremasLocalized[cnt, 0] = y
-                extremasLocalized[cnt, 1] = x
-                extremasLocalized[cnt, 2] = s
+
+                # # 옥타브 그대로 저장한 버전
+                # extremasLocalized[cnt, 0] = y
+                # extremasLocalized[cnt, 1] = x
+                # extremasLocalized[cnt, 2] = s
+
+                # 옥타브 생성하기 전 위치로 변환하여 저장한 버전 (모두 옥타브 0으로 위치/범위 변경)
+                extremasLocalizedMod[cnt, 0] = (y + xhat[0]) * (2 ** octaveIdx)
+                extremasLocalizedMod[cnt, 1] = (x + xhat[1]) * (2 ** octaveIdx)
+                extremasLocalizedMod[cnt, 2] = octaveIdx + s * (2 ** 8) + int(round((xhat[2] + 0.5) * 255)) * (2 ** 16)
+                # keyPointSize = sigma * (2 ** ((image_index + extremum_update[2]) / float32(num_intervals))) * (
+                #             2 ** (octave_index + 1))  # octave_index + 1 because the input image was doubled
+                response = abs(Dxhat[0][0])
+
                 cnt+=1
 
-    return extremasLocalized[:int(cnt), :]
+    return extremasLocalizedMod[:int(cnt), :] #extremasLocalized[:int(cnt), :]
 
 if __name__ == "__main__" :
 

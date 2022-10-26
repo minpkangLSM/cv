@@ -26,6 +26,13 @@ def scaleSpace(img,
     :return: space, sigmas
     """
     print("CHAPTER 3 : GENERATE SCALE SPACE FOR AN IMAGE.")
+    print("\tDOUBLING IMAGE SIZE...")
+    prevImg = img
+    img = cv2.resize(prevImg,
+                     (0,0),
+                     fx=2, fy=2,
+                     interpolation=cv2.INTER_AREA)
+    print("\t- FINISHED DOUBLING SIZE : {0} -> {1} (Height(Y), Width(X))".format(prevImg.shape, img.shape))
     print("\tGENERATING SCALE SPACE FOR THE IMAGE..")
     startTime = process_time()
     # set parameters

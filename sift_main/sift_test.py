@@ -21,3 +21,4 @@ if __name__ == "__main__" :
     extremasLocalized = localize(dogSpace=dogSpace,
                                  interval_num=s,
                                  extremaLocation=extremaLocation)
+    print(extremasLocalized)
