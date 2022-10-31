@@ -4,6 +4,7 @@ import numba as nb
 from numba import jit, njit, int16, int64, float64
 from basic.filters import *
 from feature_extractor import *
+from orientation_assignment import *
 from localization import *
 
 if __name__ == "__main__" :
@@ -21,5 +22,5 @@ if __name__ == "__main__" :
     extremasLocalized = localize(dogSpace=dogSpace,
                                  interval_num=s,
                                  extremaLocation=extremaLocation)
-
     print(extremasLocalized)
+    oriAssign(extremasLocalized=extremasLocalized)

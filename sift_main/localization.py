@@ -141,9 +141,12 @@ def localizeSub(octave,
                 # extremasLocalized[cnt, 2] = s
 
                 # 옥타브 생성하기 전 위치로 변환하여 저장한 버전 (모두 옥타브 0으로 위치/범위 변경) - Medium 참고
-                extremasLocalizedMod[cnt, 0] = (y + xhat[0]) * (2 ** octaveIdx)
-                extremasLocalizedMod[cnt, 1] = (x + xhat[1]) * (2 ** octaveIdx)
+                extremasLocalizedMod[cnt, 0] = (y + xhat[0]) * (2 ** octaveIdx) # 옥타브에 따라 1/2씩 영상의 크기가 줄어든 점을 고려하여 위치 원복
+                extremasLocalizedMod[cnt, 1] = (x + xhat[1]) * (2 ** octaveIdx) # 옥타브에 따라 1/2씩 영상의 크기가 줄어든 점을 고려하여 위치 원복
+                # 각 키포인트들의 scale(=sigma) 값을 원영상 기준으로 원복
+                # 각 옥타브 내 레이어에 위치한 키포인트들의 k값이 곱해지는 원리를 생각해보면 된다. -> 옥타브가 올라갈 때마다 2^(octaveIdx)만큼 배율이 증가
                 extremasLocalizedMod[cnt, 2] = sigma * (2 ** ((s + xhat[2]) / np.float32(interval_num))) * (2 ** (octaveIdx + 1))  # octave_index + 1 because the input image was doubled
+
                 keypoinOctave = octaveIdx + s * (2 ** 8) + int(round((xhat[2] + 0.5) * 255)) * (2 ** 16)
                 response = abs(Dxhat[0][0])
 
