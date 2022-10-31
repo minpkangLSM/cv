@@ -14,3 +14,9 @@ from localization import *
 Chapter 5.
 Orientation Assigment
 """
+
+def oriAssign(extremasLocalized,
+              scaleFactor=1.5):
+
+    scale = scaleFactor * localized 키포인트의 scale / (2**(옥타브+1)) - > 원래 옥타브에 적용됐던 스케일 값
+    -> localized 키포인트의 scale 추출값은 옥타브까지 고려한 scale 값

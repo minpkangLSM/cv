@@ -16,6 +16,7 @@ Accurate Keypoint Localization
 def localize(dogSpace,
              extremaLocation,
              interval_num,
+             sigma=1.6,
              offsetThr=0.5,
              convergenceThr=5,
              eigenRatio=10):
@@ -23,6 +24,11 @@ def localize(dogSpace,
     :param dogSpace
     :param extremaLocation
            the order of data : [y, x, sigma]
+    :param interval_num
+           var. s in def scaleSpace
+           몇 번째 레이어를 각 옥타브 base layer에 주어지는 시그마의 2배로 할지 결정하는 파라미터
+    :param sigma
+           각 옥타브 내 존재하는 layer에 가우시안 스무딩을 할 때 사용되는 기준 시그마 값 (default = 1.6)
     :param offsetThr
     :return:
     """
@@ -38,8 +44,8 @@ def localize(dogSpace,
         extremasTmp = np.stack((extremas[0], # y
                                 extremas[1], # x
                                 extremas[2]), axis=1)
-
         extremasLocalized = localizeSub(octave=octave,
+                                        sigma=sigma,
                                         extremas=extremasTmp,
                                         octaveIdx=octaveIdx,
                                         interval_num=interval_num,
@@ -49,7 +55,7 @@ def localize(dogSpace,
         extremaLocalizedDict[octaveIdx] = extremasLocalized
 
     t2 = process_time()
-    print("\t- FINISHED LOCALIZING & REMOVING. TIME : {0}".format(t2-t1))
+    print("\t - FINISHED LOCALIZING & REMOVING. TIME : {0}".format(t2-t1))
     print("\t================= RESULTS =================")
     for octaveIdx in extremaLocation.keys() :
         print("\t  [OCTAVE {0}]".format(octaveIdx))
@@ -58,16 +64,17 @@ def localize(dogSpace,
     print("\t===========================================")
     return extremaLocalizedDict
 
-@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64, float64))
+@jit(float64[:,:](float64[:,:,:], int64[:,:], float64, float64, float64, float64, float64, float64))
 def localizeSub(octave,
                 extremas,
+                sigma,
                 octaveIdx,
                 interval_num,
                 offsetThr,
                 convergenceThr,
                 eigenRatio):
 
-    extremasLocalized = np.zeros_like(extremas).astype(np.float64)
+    # extremasLocalized = np.zeros_like(extremas).astype(np.float64)
     extremasLocalizedMod = np.zeros_like(extremas).astype(np.float64)
 
     cnt = 0
@@ -133,12 +140,11 @@ def localizeSub(octave,
                 # extremasLocalized[cnt, 1] = x
                 # extremasLocalized[cnt, 2] = s
 
-                # 옥타브 생성하기 전 위치로 변환하여 저장한 버전 (모두 옥타브 0으로 위치/범위 변경)
+                # 옥타브 생성하기 전 위치로 변환하여 저장한 버전 (모두 옥타브 0으로 위치/범위 변경) - Medium 참고
                 extremasLocalizedMod[cnt, 0] = (y + xhat[0]) * (2 ** octaveIdx)
                 extremasLocalizedMod[cnt, 1] = (x + xhat[1]) * (2 ** octaveIdx)
-                extremasLocalizedMod[cnt, 2] = octaveIdx + s * (2 ** 8) + int(round((xhat[2] + 0.5) * 255)) * (2 ** 16)
-                # keyPointSize = sigma * (2 ** ((image_index + extremum_update[2]) / float32(num_intervals))) * (
-                #             2 ** (octave_index + 1))  # octave_index + 1 because the input image was doubled
+                extremasLocalizedMod[cnt, 2] = sigma * (2 ** ((s + xhat[2]) / np.float32(interval_num))) * (2 ** (octaveIdx + 1))  # octave_index + 1 because the input image was doubled
+                keypoinOctave = octaveIdx + s * (2 ** 8) + int(round((xhat[2] + 0.5) * 255)) * (2 ** 16)
                 response = abs(Dxhat[0][0])
 
                 cnt+=1

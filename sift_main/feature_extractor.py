@@ -46,8 +46,13 @@ def scaleSpace(img,
 
             initSigma = sigmas[layerIdx]
 
-            if layerIdx==0 and octaveIdx==0 : sigmaDiff = np.sqrt(initSigma**2-0.5**2) # 토대영상(=완전 처음 영상)
-            elif layerIdx==0 : sigmaDiff = initSigma # 토대영상은 아니지만 각 옥타브의 처음 영상인 경우
+            if octaveIdx==0 and layerIdx==0 : sigmaDiff = np.sqrt(initSigma**2-0.5**2) # 토대영상(=완전 처음 영상)
+            elif layerIdx==0 :
+                # 토대영상은 아니지만 각 옥타브의 처음 영상인 경우 -> 이미 각 옥타브별 1.6 스무딩이 되어있다고 가정한다.
+                layer = layer[:, :, np.newaxis]
+                octaveStack = layer
+                prevSigma = initSigma
+                continue
             else : sigmaDiff = np.sqrt(initSigma**2 - prevSigma**2) # 토대영상도, 처음 양상도 아닌 경우
 
             layer = gaussian(img=layer,
@@ -66,7 +71,7 @@ def scaleSpace(img,
                            interpolation=cv2.INTER_AREA)
     endTime = process_time()
     print("\t- FINISHED GENERATING SCALE SPACE. TIME : {0}".format(endTime-startTime))
-    return space, sigmas
+    return space, np.array(sigmas)
 
 def dog(scaleSpace):
     """
